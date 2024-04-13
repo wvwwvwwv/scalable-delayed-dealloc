@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod examples {
-    use scc::ebr::{AtomicShared, Guard, Owned, Shared, Tag};
+    use smm::{AtomicShared, Guard, Owned, Shared, Tag};
     use std::sync::atomic::AtomicIsize;
     use std::sync::atomic::Ordering::{Acquire, Relaxed};
     use std::thread;

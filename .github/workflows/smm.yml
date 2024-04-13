@@ -1,0 +1,62 @@
+name: SCC
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check-basic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v3
+      - name: Debug
+        run: RUST_BACKTRACE=1 cargo test --verbose -- --nocapture
+      - name: Release
+        run: RUST_BACKTRACE=1 cargo test --release --verbose -- --nocapture
+  check-extended:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v3
+      - name: Prepare
+        run:
+          sudo apt-get install gcc-multilib;
+          rustup target add i686-unknown-linux-gnu;
+          rustup toolchain add nightly;
+          rustup component add rust-src --toolchain nightly;
+          rustup component add clippy --toolchain nightly;
+          rustup component add miri --toolchain nightly
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-msrv, cargo-spellcheck
+      - name: MSRV
+        run: cargo msrv verify
+      - name: Spell-check
+        run: cargo spellcheck check
+      - name: Format
+        run:
+          cargo fmt --check;
+          cargo fmt -p examples --check
+      - name: Examples
+        run:
+          RUST_BACKTRACE=1 cargo test --release -p examples -- --nocapture;
+          RUST_BACKTRACE=1 cargo test --target i686-unknown-linux-gnu --release -p examples -- --nocapture;
+          RUST_BACKTRACE=1 cargo +nightly test --release -p examples -- --nocapture;
+      - name: Doc
+        run:
+          cargo doc --document-private-items;
+      - name: Miri
+        run: cargo +nightly miri test --lib --bins --tests
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v3
+      - name: Benchmark
+        run: cargo bench

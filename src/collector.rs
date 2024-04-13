@@ -1,5 +1,5 @@
 use super::{Collectible, Guard, Tag};
-use crate::exit_guard::ExitGuard;
+use super::exit_guard::ExitGuard;
 use std::panic;
 use std::ptr::{self, NonNull};
 use std::sync::atomic::Ordering::{Acquire, Relaxed, Release, SeqCst};

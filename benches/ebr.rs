@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use scc::ebr::Guard;
+use smm::Guard;
 
 fn guard_single(c: &mut Criterion) {
     c.bench_function("EBR: guard", |b| {
