@@ -10,7 +10,7 @@ readme = "README.md"
 repository = "https://github.com/wvwwvwwv/safe-deferred-drop/"
 license = "Apache-2.0"
 categories = ["concurrency", "data-structures", "memory-management"]
-keywords = ["concurrent", "epoch", "garbage", "memory"]
+keywords = ["concurrent", "epoch", "garbage", "lock-free", "memory"]
 
 [workspace]
 members = [".", "examples"]
