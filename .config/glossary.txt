@@ -4,8 +4,11 @@ CAS
 Changelog
 crossbeam_epoch
 DashMap
+Dealloc
 deallocate
+deallocates
 deallocating
+deallocation
 dereference
 dereferenced
 EBR
@@ -21,6 +24,8 @@ Linearizability
 LinkedList
 LRU
 M1
+M2
+M3
 metadata
 overcount
 Resize
