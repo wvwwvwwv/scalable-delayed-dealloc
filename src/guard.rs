@@ -23,7 +23,7 @@ impl Guard {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::Guard;
+    /// use sdd::Guard;
     ///
     /// let guard = Guard::new();
     /// ```
@@ -47,7 +47,7 @@ impl Guard {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{Guard, Collectible};
+    /// use sdd::{Guard, Collectible};
     /// use std::ptr::NonNull;
     ///
     /// struct C(usize, Option<NonNull<dyn Collectible>>);
@@ -84,7 +84,7 @@ impl Guard {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::Guard;
+    /// use sdd::Guard;
     ///
     /// let guard = Guard::new();
     /// guard.defer_execute(|| println!("deferred"));

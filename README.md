@@ -1,10 +1,12 @@
-# Scalable Concurrent Containers
+# Scalable Delayed Dealloc
 
-[![Cargo](https://img.shields.io/crates/v/smm)](https://crates.io/crates/smm)
-![Crates.io](https://img.shields.io/crates/l/smm)
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/wvwwvwwv/scalable-memory-manager/smm.yml?branch=main)
+[![Cargo](https://img.shields.io/crates/v/sdd)](https://crates.io/crates/sdd)
+![Crates.io](https://img.shields.io/crates/l/sdd)
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/wvwwvwwv/scalable-delayed-dealloc/sdd.yml?branch=main)
 
-Epoch-based reclamation and various types of auxiliary data structures to make use of it safely. Its epoch-based reclamation algorithm is similar to that implemented in [crossbeam_epoch](https://docs.rs/crossbeam-epoch/), however users may find it easier to use as the lifetime of an instance is safely managed. For instance, `ebr::AtomicOwned` and `ebr::Owned` automatically retire the contained instance and `ebr::AtomicShared` and `ebr::Shared` hold a reference-counted instance which is retired when the last strong reference is dropped.
+A scalable lock-free delayed memory reclaimer that deallocates virtual addresses only after it makes sure that there are no potential readers.
+
+Its delayed deallocation algorithm is a variant of epoch-based reclamation where _retired_ memory chunks are stored in the thread-local storage until certain criteria are met. The [crossbeam_epoch](https://docs.rs/crossbeam-epoch/) create offers very similar functionality, however users will find this crate easier to use as the lifetime of a memory chunk is safely _managed_. For instance, `sdd::AtomicOwned` and `sdd::Owned` retire the contained instance when they are dropped, and `sdd::AtomicShared` and `sdd::Shared` retire the instance when the last strong reference is dropped.
 
 ## Memory Overhead
 
@@ -12,11 +14,10 @@ Retired instances are stored in intrusive queues in thread-local storage, and th
 
 ## Examples
 
-The `ebr` module can be used without an `unsafe` block.
+This crate ca be used _without an `unsafe` block_.
 
 ```rust
-use smm::{suspend, AtomicOwned, AtomicShared, Guard, Ptr, Shared, Tag};
-
+use sdd::{suspend, AtomicOwned, AtomicShared, Guard, Ptr, Shared, Tag};
 use std::sync::atomic::Ordering::Relaxed;
 
 // `atomic_shared` holds a strong reference to `17`.
@@ -58,7 +59,7 @@ assert_eq!(*prev, 17);
 // `17` will be garbage-collected later.
 drop(prev);
 
-// `ebr::AtomicShared` can be converted into `ebr::Shared`.
+// `sdd::AtomicShared` can be converted into `sdd::Shared`.
 let shared: Shared<usize> = atomic_shared.into_shared(Relaxed).unwrap();
 assert_eq!(*shared, 18);
 
@@ -80,6 +81,6 @@ suspend();
 
 ## Performance
 
-- The average time taken to enter and exit a protected region: 2.1 nanoseconds on Apple M1.
+- The average time taken to enter and exit a protected region: 2.2 nanoseconds on Apple M2.
 
 ## [Changelog](https://github.com/wvwwvwwv/scalable-concurrent-containers/blob/main/CHANGELOG.md)

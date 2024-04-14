@@ -2,15 +2,15 @@ use std::ptr::NonNull;
 
 /// [`Collectible`] defines key methods for `Self` to be reclaimed by the EBR garbage collector.
 ///
-/// The [`ebr`](super) module provides managed handles which implement [`Collectible`] in tandem
-/// with atomic reference counting, however it is also possible to manually implement the
-/// [`Collectible`] trait for a type to pass an instance of the type to the EBR garbage collector
-/// via [`Guard::defer`](super::Guard::defer).
+/// The module provides managed handles which implement [`Collectible`] in tandem with atomic
+/// reference counting, however it is also possible to manually implement the [`Collectible`] trait
+/// for a type to pass an instance of the type to the EBR garbage collector via
+/// [`Guard::defer`](super::Guard::defer).
 ///
 /// # Examples
 ///
 /// ```
-/// use scc::ebr::{Guard, Collectible};
+/// use sdd::{Guard, Collectible};
 /// use std::ptr::NonNull;
 ///
 /// struct LazyString(String, Option<NonNull<dyn Collectible>>);

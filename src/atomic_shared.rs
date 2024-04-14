@@ -28,7 +28,7 @@ impl<T: 'static> AtomicShared<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::AtomicShared;
+    /// use sdd::AtomicShared;
     ///
     /// let atomic_shared: AtomicShared<usize> = AtomicShared::new(10);
     /// ```
@@ -47,7 +47,7 @@ impl<T> AtomicShared<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{AtomicShared, Shared};
+    /// use sdd::{AtomicShared, Shared};
     ///
     /// let shared: Shared<usize> = Shared::new(10);
     /// let atomic_shared: AtomicShared<usize> = AtomicShared::from(shared);
@@ -67,7 +67,7 @@ impl<T> AtomicShared<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::AtomicShared;
+    /// use sdd::AtomicShared;
     ///
     /// let atomic_shared: AtomicShared<usize> = AtomicShared::null();
     /// ```
@@ -84,7 +84,7 @@ impl<T> AtomicShared<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{AtomicShared, Tag};
+    /// use sdd::{AtomicShared, Tag};
     /// use std::sync::atomic::Ordering::Relaxed;
     ///
     /// let atomic_shared: AtomicShared<usize> = AtomicShared::null();
@@ -101,7 +101,7 @@ impl<T> AtomicShared<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{AtomicShared, Guard};
+    /// use sdd::{AtomicShared, Guard};
     /// use std::sync::atomic::Ordering::Relaxed;
     ///
     /// let atomic_shared: AtomicShared<usize> = AtomicShared::new(11);
@@ -119,7 +119,7 @@ impl<T> AtomicShared<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{AtomicShared, Guard, Shared, Tag};
+    /// use sdd::{AtomicShared, Guard, Shared, Tag};
     /// use std::sync::atomic::Ordering::Relaxed;
     ///
     /// let atomic_shared: AtomicShared<usize> = AtomicShared::new(14);
@@ -155,7 +155,7 @@ impl<T> AtomicShared<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{AtomicShared, Tag};
+    /// use sdd::{AtomicShared, Tag};
     /// use std::sync::atomic::Ordering::Relaxed;
     ///
     /// let atomic_shared: AtomicShared<usize> = AtomicShared::null();
@@ -173,7 +173,7 @@ impl<T> AtomicShared<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{AtomicShared, Tag};
+    /// use sdd::{AtomicShared, Tag};
     /// use std::sync::atomic::Ordering::Relaxed;
     ///
     /// let atomic_shared: AtomicShared<usize> = AtomicShared::null();
@@ -210,7 +210,7 @@ impl<T> AtomicShared<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{AtomicShared, Guard, Shared, Tag};
+    /// use sdd::{AtomicShared, Guard, Shared, Tag};
     /// use std::sync::atomic::Ordering::Relaxed;
     ///
     /// let atomic_shared: AtomicShared<usize> = AtomicShared::new(17);
@@ -281,7 +281,7 @@ impl<T> AtomicShared<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{AtomicShared, Guard, Shared, Tag};
+    /// use sdd::{AtomicShared, Guard, Shared, Tag};
     /// use std::sync::atomic::Ordering::Relaxed;
     ///
     /// let atomic_shared: AtomicShared<usize> = AtomicShared::new(17);
@@ -341,7 +341,7 @@ impl<T> AtomicShared<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{AtomicShared, Guard};
+    /// use sdd::{AtomicShared, Guard};
     /// use std::sync::atomic::Ordering::Relaxed;
     ///
     /// let atomic_shared: AtomicShared<usize> = AtomicShared::new(59);
@@ -378,7 +378,7 @@ impl<T> AtomicShared<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{AtomicShared, Guard, Shared};
+    /// use sdd::{AtomicShared, Guard, Shared};
     /// use std::sync::atomic::Ordering::Relaxed;
     ///
     /// let atomic_shared: AtomicShared<usize> = AtomicShared::new(47);
@@ -409,7 +409,7 @@ impl<T> AtomicShared<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{AtomicShared, Shared};
+    /// use sdd::{AtomicShared, Shared};
     /// use std::sync::atomic::Ordering::Relaxed;
     ///
     /// let atomic_shared: AtomicShared<usize> = AtomicShared::new(55);

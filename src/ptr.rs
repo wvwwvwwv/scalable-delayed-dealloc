@@ -19,7 +19,7 @@ impl<'g, T> Ptr<'g, T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::Ptr;
+    /// use sdd::Ptr;
     ///
     /// let ptr: Ptr<usize> = Ptr::null();
     /// ```
@@ -37,7 +37,7 @@ impl<'g, T> Ptr<'g, T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::Ptr;
+    /// use sdd::Ptr;
     ///
     /// let ptr: Ptr<usize> = Ptr::null();
     /// assert!(ptr.is_null());
@@ -53,7 +53,7 @@ impl<'g, T> Ptr<'g, T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{AtomicShared, Guard};
+    /// use sdd::{AtomicShared, Guard};
     /// use std::sync::atomic::Ordering::Relaxed;
     ///
     /// let atomic_shared: AtomicShared<usize> = AtomicShared::new(21);
@@ -72,7 +72,7 @@ impl<'g, T> Ptr<'g, T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{Guard, Shared};
+    /// use sdd::{Guard, Shared};
     /// use std::sync::atomic::Ordering::Relaxed;
     ///
     /// let shared: Shared<usize> = Shared::new(29);
@@ -97,7 +97,7 @@ impl<'g, T> Ptr<'g, T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{Ptr, Tag};
+    /// use sdd::{Ptr, Tag};
     ///
     /// let ptr: Ptr<usize> = Ptr::null();
     /// assert_eq!(ptr.tag(), Tag::None);
@@ -115,7 +115,7 @@ impl<'g, T> Ptr<'g, T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{Ptr, Tag};
+    /// use sdd::{Ptr, Tag};
     ///
     /// let mut ptr: Ptr<usize> = Ptr::null();
     /// assert_eq!(ptr.set_tag(Tag::Both), Tag::None);
@@ -135,7 +135,7 @@ impl<'g, T> Ptr<'g, T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{Ptr, Tag};
+    /// use sdd::{Ptr, Tag};
     ///
     /// let mut ptr: Ptr<usize> = Ptr::null().with_tag(Tag::Both);
     /// assert_eq!(ptr.unset_tag(), Tag::Both);
@@ -152,7 +152,7 @@ impl<'g, T> Ptr<'g, T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{Ptr, Tag};
+    /// use sdd::{Ptr, Tag};
     ///
     /// let mut ptr: Ptr<usize> = Ptr::null();
     /// assert_eq!(ptr.tag(), Tag::None);
@@ -171,7 +171,7 @@ impl<'g, T> Ptr<'g, T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{Ptr, Tag};
+    /// use sdd::{Ptr, Tag};
     ///
     /// let mut ptr: Ptr<usize> = Ptr::null();
     /// ptr.set_tag(Tag::Second);
@@ -191,7 +191,7 @@ impl<'g, T> Ptr<'g, T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{Guard, Shared};
+    /// use sdd::{Guard, Shared};
     ///
     /// let shared: Shared<usize> = Shared::new(83);
     /// let guard = Guard::new();

@@ -25,7 +25,7 @@ impl<T: 'static> Owned<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::Owned;
+    /// use sdd::Owned;
     ///
     /// let owned: Owned<usize> = Owned::new(31);
     /// ```
@@ -49,7 +49,7 @@ impl<T> Owned<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::Owned;
+    /// use sdd::Owned;
     ///
     /// let hello = String::from("hello");
     /// let owned: Owned<&str> = unsafe { Owned::new_unchecked(hello.as_str()) };
@@ -67,7 +67,7 @@ impl<T> Owned<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{Guard, Owned};
+    /// use sdd::{Guard, Owned};
     ///
     /// let owned: Owned<usize> = Owned::new(37);
     /// let guard = Guard::new();
@@ -87,7 +87,7 @@ impl<T> Owned<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{Guard, Owned};
+    /// use sdd::{Guard, Owned};
     ///
     /// let owned: Owned<usize> = Owned::new(37);
     /// let guard = Guard::new();
@@ -111,7 +111,7 @@ impl<T> Owned<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::Owned;
+    /// use sdd::Owned;
     ///
     /// let mut owned: Owned<usize> = Owned::new(38);
     /// unsafe {
@@ -129,7 +129,7 @@ impl<T> Owned<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::Owned;
+    /// use sdd::Owned;
     /// use std::sync::atomic::AtomicBool;
     /// use std::sync::atomic::Ordering::Relaxed;
     ///
@@ -148,7 +148,7 @@ impl<T> Owned<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{Guard, Owned};
+    /// use sdd::{Guard, Owned};
     ///
     /// let owned: Owned<usize> = Owned::new(47);
     /// let guard = Guard::new();
@@ -169,7 +169,7 @@ impl<T> Owned<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::Owned;
+    /// use sdd::Owned;
     /// use std::sync::atomic::AtomicBool;
     /// use std::sync::atomic::Ordering::Relaxed;
     ///

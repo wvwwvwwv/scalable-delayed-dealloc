@@ -26,7 +26,7 @@ impl<T: 'static> Shared<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::Shared;
+    /// use sdd::Shared;
     ///
     /// let shared: Shared<usize> = Shared::new(31);
     /// ```
@@ -52,7 +52,7 @@ impl<T> Shared<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::Shared;
+    /// use sdd::Shared;
     ///
     /// let hello = String::from("hello");
     /// let shared: Shared<&str> = unsafe { Shared::new_unchecked(hello.as_str()) };
@@ -72,7 +72,7 @@ impl<T> Shared<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{Guard, Shared};
+    /// use sdd::{Guard, Shared};
     ///
     /// let shared: Shared<usize> = Shared::new(37);
     /// let guard = Guard::new();
@@ -92,7 +92,7 @@ impl<T> Shared<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{Guard, Shared};
+    /// use sdd::{Guard, Shared};
     ///
     /// let shared: Shared<usize> = Shared::new(37);
     /// let guard = Guard::new();
@@ -118,7 +118,7 @@ impl<T> Shared<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::Shared;
+    /// use sdd::Shared;
     ///
     /// let mut shared: Shared<usize> = Shared::new(38);
     /// unsafe {
@@ -136,7 +136,7 @@ impl<T> Shared<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::Shared;
+    /// use sdd::Shared;
     /// use std::sync::atomic::AtomicBool;
     /// use std::sync::atomic::Ordering::Relaxed;
     ///
@@ -159,7 +159,7 @@ impl<T> Shared<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::{Guard, Shared};
+    /// use sdd::{Guard, Shared};
     ///
     /// let shared: Shared<usize> = Shared::new(47);
     /// let shared_clone = shared.clone();
@@ -191,7 +191,7 @@ impl<T> Shared<T> {
     /// # Examples
     ///
     /// ```
-    /// use scc::ebr::Shared;
+    /// use sdd::Shared;
     /// use std::sync::atomic::AtomicBool;
     /// use std::sync::atomic::Ordering::Relaxed;
     ///

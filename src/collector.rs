@@ -1,6 +1,5 @@
-use super::{Collectible, Guard, Tag};
 use super::exit_guard::ExitGuard;
-use std::panic;
+use super::{Collectible, Guard, Tag};
 use std::ptr::{self, NonNull};
 use std::sync::atomic::Ordering::{Acquire, Relaxed, Release, SeqCst};
 use std::sync::atomic::{fence, AtomicPtr, AtomicU8};
@@ -64,10 +63,9 @@ impl Collector {
                 self.announcement = new_epoch;
                 true
             }
-        } else if self.num_readers == u32::MAX {
-            panic!("Too many EBR guards");
         } else {
             debug_assert_eq!(self.state.load(Relaxed) & Self::INACTIVE, 0);
+            assert_ne!(self.num_readers, u32::MAX, "Too many EBR guards");
             self.num_readers += 1;
             false
         }

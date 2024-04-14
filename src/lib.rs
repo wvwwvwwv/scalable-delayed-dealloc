@@ -37,7 +37,7 @@ mod ref_counted;
 /// # Examples
 ///
 /// ```
-/// use smm::{suspend, Guard, Shared};
+/// use sdd::{suspend, Guard, Shared};
 ///
 /// assert!(suspend());
 ///
