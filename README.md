@@ -14,7 +14,7 @@ Retired instances are stored in intrusive queues in thread-local storage, and th
 
 ## Examples
 
-This crate ca be used _without an `unsafe` block_.
+This crate can be used _without an `unsafe` block_.
 
 ```rust
 use sdd::{suspend, AtomicOwned, AtomicShared, Guard, Ptr, Shared, Tag};
@@ -83,4 +83,4 @@ suspend();
 
 - The average time taken to enter and exit a protected region: 2.2 nanoseconds on Apple M2.
 
-## [Changelog](https://github.com/wvwwvwwv/scalable-concurrent-containers/blob/main/CHANGELOG.md)
+## [Changelog](https://github.com/wvwwvwwv/scalable-delayed-dealloc/blob/main/CHANGELOG.md)
