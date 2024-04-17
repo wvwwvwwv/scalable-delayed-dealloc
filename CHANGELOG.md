@@ -1,5 +1,9 @@
 # Changelog
 
+0.2.0
+
+* Make `Guard` `UnwindSafe`.
+
 0.1.0
 
 * Minor optimization.

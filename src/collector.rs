@@ -60,7 +60,13 @@ impl Collector {
             if self.announcement != new_epoch {
                 self.announcement = new_epoch;
                 if collect_garbage {
-                    self.epoch_updated();
+                    let mut exit_guard = ExitGuard::new((self, false), |(guard, result)| {
+                        if !result {
+                            guard.end_guard();
+                        }
+                    });
+                    exit_guard.0.epoch_updated();
+                    exit_guard.1 = true;
                 }
             }
         } else {
