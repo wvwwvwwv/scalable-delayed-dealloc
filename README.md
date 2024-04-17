@@ -47,7 +47,7 @@ assert!(atomic_shared.compare_exchange(
 // `ptr` can be tagged.
 ptr.set_tag(Tag::First);
 
-// The return value of CAS is a handle to the instance that `atomic_shared` previously owned.
+// The ownership of the contained instance is transferred to the return value of CAS.
 let prev: Shared<usize> = atomic_shared.compare_exchange(
     ptr,
     (Some(Shared::new(18)), Tag::Second),
@@ -74,13 +74,13 @@ assert_eq!(*ptr.as_ref().unwrap(), 17);
 guard.defer_execute(|| println!("deferred"));
 drop(guard);
 
-// If the thread is expected to lie dormant for a while, call `suspend()` to allow other threads
-// to reclaim its own retired instances.
+// If the thread is expected to lie dormant for a while, call `suspend()` to allow
+// others to reclaim the memory.
 suspend();
 ```
 
 ## Performance
 
-- The average time taken to enter and exit a protected region: 2.2 nanoseconds on Apple M2.
+- The average time taken to enter and exit a protected region: 2.0 nanoseconds on Apple M2.
 
 ## [Changelog](https://github.com/wvwwvwwv/scalable-delayed-dealloc/blob/main/CHANGELOG.md)

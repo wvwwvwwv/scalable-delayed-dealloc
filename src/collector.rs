@@ -39,7 +39,7 @@ impl Collector {
     ///
     /// The method may panic if the number of readers has reached `u32::MAX`.
     #[inline]
-    pub(super) fn new_guard(&mut self) -> bool {
+    pub(super) fn new_guard(&mut self, collect_garbage: bool) {
         if self.num_readers == 0 {
             debug_assert_eq!(self.state.load(Relaxed) & Self::INACTIVE, Self::INACTIVE);
             self.num_readers = 1;
@@ -57,17 +57,16 @@ impl Collector {
                 self.state.store(new_epoch, Relaxed);
                 fence(SeqCst);
             }
-            if self.announcement == new_epoch {
-                false
-            } else {
+            if self.announcement != new_epoch {
                 self.announcement = new_epoch;
-                true
+                if collect_garbage {
+                    self.epoch_updated();
+                }
             }
         } else {
             debug_assert_eq!(self.state.load(Relaxed) & Self::INACTIVE, 0);
             assert_ne!(self.num_readers, u32::MAX, "Too many EBR guards");
             self.num_readers += 1;
-            false
         }
     }
 

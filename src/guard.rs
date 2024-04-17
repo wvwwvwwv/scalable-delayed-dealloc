@@ -31,14 +31,8 @@ impl Guard {
     #[must_use]
     pub fn new() -> Self {
         let collector_ptr = Collector::current();
-        let epoch_updated = unsafe { (*collector_ptr).new_guard() };
-        let guard = Self { collector_ptr };
-        if epoch_updated {
-            unsafe {
-                (*guard.collector_ptr).epoch_updated();
-            }
-        }
-        guard
+        unsafe { (*collector_ptr).new_guard(true) };
+        Self { collector_ptr }
     }
 
     /// Defers dropping and memory reclamation of the supplied [`Box`] of a type implementing
@@ -99,7 +93,7 @@ impl Guard {
     pub(super) fn new_for_drop() -> Self {
         let collector_ptr = Collector::current();
         unsafe {
-            (*collector_ptr).new_guard();
+            (*collector_ptr).new_guard(false);
         }
         Self { collector_ptr }
     }
