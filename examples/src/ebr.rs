@@ -17,10 +17,22 @@ mod examples {
         static DROP_CNT: AtomicIsize = AtomicIsize::new(0);
 
         let r = Shared::new(R(&DROP_CNT));
+
+        let guard = Guard::new();
+
+        // `p` can outlive `r` as long as `guard` survives.
+        let p = r.get_guarded_ptr(&guard);
+
         assert_eq!(DROP_CNT.load(Relaxed), 0);
         drop(r);
 
         assert_eq!(DROP_CNT.load(Relaxed), 0);
+
+        // It is possible to read the memory owned by `r`.
+        assert!(p.as_ref().is_some());
+
+        // Dropping guard immediately invalidates `p`.
+        drop(guard);
 
         while DROP_CNT.load(Relaxed) != 1 {
             let guard = Guard::new();
@@ -39,24 +51,31 @@ mod examples {
         thread::scope(|s| {
             s.spawn(|| {
                 let guard = Guard::new();
-                let ptr = r1.get_guarded_ptr(&guard);
+                let p = r1.get_guarded_ptr(&guard);
                 drop(r1);
 
-                // `ptr` can outlive `r1`.
-                assert!(ptr.as_ref().unwrap().0.load(Relaxed) <= 1);
+                // `p` can outlive `r1`.
+                assert!(p.as_ref().unwrap().0.load(Relaxed) <= 1);
             });
             s.spawn(|| {
                 let guard = Guard::new();
-                let ptr = r2.load(Acquire, &guard);
-                assert!(ptr.as_ref().unwrap().0.load(Relaxed) <= 1);
+
+                // `p` can be constructed through `AtomicShared` or `AtomicOwned`.
+                let p = r2.load(Acquire, &guard);
+                assert!(p.as_ref().unwrap().0.load(Relaxed) <= 1);
 
                 let r3 = r2.get_shared(Acquire, &guard).unwrap();
-                drop(guard);
 
                 // `r3` can outlive `guard`.
                 assert!(r3.0.load(Relaxed) <= 1);
 
-                let r4 = r2.swap((None, Tag::None), Acquire).0.unwrap();
+                // `AtomicOwned` and `AtomicShared` provide atomic compare-and-swap methods.
+                let r4 = r2
+                    .compare_exchange(p, (None, Tag::None), Acquire, Relaxed, &guard)
+                    .ok()
+                    .unwrap()
+                    .0
+                    .unwrap();
                 assert!(r4.0.load(Relaxed) <= 1);
             });
         });
