@@ -28,6 +28,7 @@ M2
 M3
 metadata
 overcount
+reclaimer
 Resize
 resize
 resized
@@ -35,6 +36,7 @@ Resizing
 resizing
 RMW
 runtime
+scalable
 scalability
 Scalable
 Serde

@@ -45,7 +45,7 @@ pub trait Collectible {
     #[inline]
     fn drop_and_dealloc(&mut self) {
         unsafe {
-            let _: Box<Self> = Box::from_raw(self as *mut Self);
+            drop(Box::from_raw(self as *mut Self));
         }
     }
 }
@@ -80,7 +80,7 @@ impl<F: 'static + FnOnce() + Sync> Collectible for DeferredClosure<F> {
             f();
         }
         unsafe {
-            let _: Box<Self> = Box::from_raw(self as *mut Self);
+            drop(Box::from_raw(self as *mut Self));
         }
     }
 }
