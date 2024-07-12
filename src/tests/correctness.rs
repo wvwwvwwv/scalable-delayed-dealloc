@@ -311,9 +311,9 @@ mod test {
                     .map(|_| {
                         s.spawn(|| {
                             let guard = Guard::new();
-                            let shared = Shared::new(B(&DEALLOCATED));
+                            let owned_shared = Owned::new(Shared::new(B(&DEALLOCATED)));
                             assert_ne!(
-                                shared
+                                owned_shared
                                     .get_guarded_ptr(&guard)
                                     .as_ref()
                                     .unwrap()
@@ -341,6 +341,7 @@ mod test {
                 thread::yield_now();
                 drop(Guard::new());
             }
+            DEALLOCATED.store(0, Relaxed);
         }
     }
 
