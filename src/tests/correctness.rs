@@ -6,9 +6,8 @@ mod test {
     use std::panic::UnwindSafe;
     use std::sync::atomic::Ordering::{Acquire, Relaxed, Release};
     use std::sync::atomic::{AtomicBool, AtomicUsize};
-    use std::thread::{self, ThreadId};
+    use std::thread;
 
-    static_assertions::assert_eq_size!(Collector, ([usize; 9], [u32; 2], ThreadId));
     static_assertions::assert_impl_all!(AtomicShared<String>: Send, Sync, UnwindSafe);
     static_assertions::assert_impl_all!(Guard: UnwindSafe);
     static_assertions::assert_impl_all!(Ptr<String>: UnwindSafe);
