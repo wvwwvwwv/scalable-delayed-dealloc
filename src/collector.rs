@@ -57,7 +57,7 @@ impl Collector {
                 // [`crossbeam_epoch`](https://docs.rs/crossbeam-epoch/).
                 //
                 // The rationale behind the code is, it compiles to `lock xchg` that
-                // practically acts as a full memory guard on `X86`, and is much faster than
+                // practically acts as a full memory barrier on `X86`, and is much faster than
                 // `mfence`.
                 self.state.swap(new_epoch, SeqCst);
             } else {
