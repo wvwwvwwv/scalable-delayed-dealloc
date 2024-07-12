@@ -2,7 +2,7 @@
 
 1.0.1
 
-* Add `Guard::thread_id`.
+* Relax trait bounds of `Guard::defer_execute`.
 
 1.0.0
 

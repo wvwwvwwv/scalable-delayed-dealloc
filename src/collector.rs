@@ -374,7 +374,7 @@ fn try_drop_local_collector() {
                     .is_ok()
             {
                 // If it is the head, and the only `Collector` in the global list, drop it here.
-                let guard = Guard::new_for_drop();
+                let guard = Guard::new_for_drop(collector_ptr);
                 while collector.has_garbage {
                     collector.epoch_updated();
                 }

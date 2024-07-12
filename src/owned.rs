@@ -1,5 +1,6 @@
 use super::ref_counted::RefCounted;
 use super::{Collectible, Guard, Ptr};
+use crate::collector::Collector;
 use std::mem::forget;
 use std::ops::Deref;
 use std::panic::UnwindSafe;
@@ -249,7 +250,7 @@ impl<T> Deref for Owned<T> {
 impl<T> Drop for Owned<T> {
     #[inline]
     fn drop(&mut self) {
-        let guard = Guard::new_for_drop();
+        let guard = Guard::new_for_drop(Collector::current());
         self.pass_underlying_to_collector(&guard);
     }
 }

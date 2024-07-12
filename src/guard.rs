@@ -85,10 +85,9 @@ impl Guard {
         self.defer(Box::new(DeferredClosure::new(f)));
     }
 
-    /// Creates a new [`Guard`] for dropping an instance.
+    /// Creates a new [`Guard`] for dropping an instance in the supplied [`Collector`].
     #[inline]
-    pub(super) fn new_for_drop() -> Self {
-        let collector_ptr = Collector::current();
+    pub(super) fn new_for_drop(collector_ptr: *mut Collector) -> Self {
         unsafe {
             (*collector_ptr).new_guard(false);
         }

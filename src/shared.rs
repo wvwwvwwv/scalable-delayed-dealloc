@@ -1,3 +1,4 @@
+use super::collector::Collector;
 use super::ref_counted::RefCounted;
 use super::{Collectible, Guard, Ptr};
 use std::mem::forget;
@@ -291,7 +292,7 @@ impl<T> Drop for Shared<T> {
     #[inline]
     fn drop(&mut self) {
         if self.underlying().drop_ref() {
-            let guard = Guard::new_for_drop();
+            let guard = Guard::new_for_drop(Collector::current());
             self.pass_underlying_to_collector(&guard);
         }
     }
