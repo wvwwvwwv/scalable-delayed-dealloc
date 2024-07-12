@@ -1,25 +1,36 @@
 #[cfg(test)]
 mod test {
+    use crate::collector::Collector;
     use crate::{suspend, AtomicOwned, AtomicShared, Guard, Owned, Ptr, Shared, Tag};
     use std::ops::Deref;
     use std::panic::UnwindSafe;
     use std::sync::atomic::Ordering::{Acquire, Relaxed, Release};
     use std::sync::atomic::{AtomicBool, AtomicUsize};
+    use std::thread::{self, ThreadId};
 
-    static_assertions::assert_impl_all!(Shared<String>: Send, Sync, UnwindSafe);
+    static_assertions::assert_eq_size!(Collector, ([usize; 9], [u32; 2], ThreadId));
     static_assertions::assert_impl_all!(AtomicShared<String>: Send, Sync, UnwindSafe);
+    static_assertions::assert_impl_all!(Guard: UnwindSafe);
     static_assertions::assert_impl_all!(Ptr<String>: UnwindSafe);
-    static_assertions::assert_not_impl_all!(Shared<*const u8>: Send, Sync, UnwindSafe);
+    static_assertions::assert_impl_all!(Shared<String>: Send, Sync, UnwindSafe);
     static_assertions::assert_not_impl_all!(AtomicShared<*const u8>: Send, Sync, UnwindSafe);
+    static_assertions::assert_not_impl_all!(Collector: Send, Sync);
+    static_assertions::assert_not_impl_all!(Guard: Send, Sync);
     static_assertions::assert_not_impl_all!(Ptr<String>: Send, Sync);
     static_assertions::assert_not_impl_all!(Ptr<*const u8>: Send, Sync, UnwindSafe);
-    static_assertions::assert_impl_all!(Guard: UnwindSafe);
-    static_assertions::assert_not_impl_all!(Guard: Send, Sync);
+    static_assertions::assert_not_impl_all!(Shared<*const u8>: Send, Sync, UnwindSafe);
 
     struct A(AtomicUsize, usize, &'static AtomicBool);
     impl Drop for A {
         fn drop(&mut self) {
             self.2.swap(true, Relaxed);
+        }
+    }
+
+    struct B(&'static AtomicUsize);
+    impl Drop for B {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, Relaxed);
         }
     }
 
@@ -207,6 +218,7 @@ mod test {
         drop(guard);
 
         while !DESTROYED.load(Relaxed) {
+            thread::yield_now();
             drop(Guard::new());
         }
     }
@@ -227,6 +239,7 @@ mod test {
         assert!(thread.join().is_ok());
 
         while !DESTROYED.load(Relaxed) {
+            thread::yield_now();
             drop(Guard::new());
         }
     }
@@ -253,6 +266,7 @@ mod test {
         drop(guard);
 
         while !DESTROYED.load(Relaxed) {
+            thread::yield_now();
             drop(Guard::new());
         }
     }
@@ -277,7 +291,57 @@ mod test {
         drop(guard);
 
         while !DESTROYED.load(Relaxed) {
+            thread::yield_now();
             drop(Guard::new());
+        }
+    }
+
+    #[cfg_attr(miri, ignore)]
+    #[test]
+    fn multi_threaded() {
+        static DEALLOCATED: AtomicUsize = AtomicUsize::new(0);
+
+        let num_threads = 16;
+        let num_iter = 16;
+
+        for _ in 0..num_iter {
+            assert!(suspend());
+
+            thread::scope(|s| {
+                let threads: Vec<_> = (0..num_threads)
+                    .map(|_| {
+                        s.spawn(|| {
+                            let guard = Guard::new();
+                            let shared = Shared::new(B(&DEALLOCATED));
+                            assert_ne!(
+                                shared
+                                    .get_guarded_ptr(&guard)
+                                    .as_ref()
+                                    .unwrap()
+                                    .0
+                                    .load(Relaxed),
+                                usize::MAX
+                            );
+                            let owned = Owned::new(B(&DEALLOCATED));
+                            assert_ne!(
+                                owned
+                                    .get_guarded_ptr(&guard)
+                                    .as_ref()
+                                    .unwrap()
+                                    .0
+                                    .load(Relaxed),
+                                usize::MAX
+                            );
+                        })
+                    })
+                    .collect();
+                threads.into_iter().for_each(|t| assert!(t.join().is_ok()));
+            });
+
+            while DEALLOCATED.load(Relaxed) != num_threads * 2 {
+                thread::yield_now();
+                drop(Guard::new());
+            }
         }
     }
 

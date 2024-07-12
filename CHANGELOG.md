@@ -1,5 +1,9 @@
 # Changelog
 
+1.0.1
+
+* Add `Guard::thread_id`.
+
 1.0.0
 
 * Minor code cleanup.
@@ -15,4 +19,3 @@
 0.0.1
 
 * Initial commit: code copied from [`scalable-concurrent-containers`](https://github.com/wvwwvwwv/scalable-concurrent-containers).
-

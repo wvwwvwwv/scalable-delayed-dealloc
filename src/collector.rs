@@ -3,6 +3,7 @@ use super::{Collectible, Guard, Tag};
 use std::ptr::{self, NonNull};
 use std::sync::atomic::Ordering::{Acquire, Relaxed, Release, SeqCst};
 use std::sync::atomic::{fence, AtomicPtr, AtomicU8};
+use std::thread::{self, ThreadId};
 
 /// [`Collector`] is a garbage collector that reclaims thread-locally unreachable instances
 /// when they are globally unreachable.
@@ -18,6 +19,7 @@ pub(super) struct Collector {
     next_instance_link: Option<NonNull<dyn Collectible>>,
     next_link: *mut Collector,
     link: Option<NonNull<dyn Collectible>>,
+    thread_id: ThreadId,
 }
 
 impl Collector {
@@ -30,6 +32,12 @@ impl Collector {
 
     /// A bit field representing a thread state where the thread has been terminated.
     const INVALID: u8 = 1_u8 << 3;
+
+    /// Returns the [`ThreadId`] of the thread associated with the [`Collector`].
+    #[inline]
+    pub fn thread_id(&self) -> ThreadId {
+        self.thread_id
+    }
 
     /// Acknowledges a new [`Guard`] being instantiated.
     ///
@@ -49,7 +57,7 @@ impl Collector {
                 // [`crossbeam_epoch`](https://docs.rs/crossbeam-epoch/).
                 //
                 // The rationale behind the code is, it compiles to `lock xchg` that
-                // practically acts as a full memory barrier on `X86`, and is much faster than
+                // practically acts as a full memory guard on `X86`, and is much faster than
                 // `mfence`.
                 self.state.swap(new_epoch, SeqCst);
             } else {
@@ -198,6 +206,7 @@ impl Collector {
             next_instance_link: None,
             next_link: ptr::null_mut(),
             link: None,
+            thread_id: thread::current().id(),
         });
         let ptr = Box::into_raw(boxed);
         let mut current = GLOBAL_ANCHOR.load(Relaxed);

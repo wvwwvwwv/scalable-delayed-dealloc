@@ -1,6 +1,7 @@
 use super::collectible::{Collectible, DeferredClosure};
 use super::collector::Collector;
 use std::panic::UnwindSafe;
+use std::thread::ThreadId;
 
 /// [`Guard`] allows the user to read [`AtomicShared`](super::AtomicShared) and keeps the
 /// underlying instance pinned to the thread.
@@ -33,6 +34,26 @@ impl Guard {
         let collector_ptr = Collector::current();
         unsafe { (*collector_ptr).new_guard(true) };
         Self { collector_ptr }
+    }
+
+    /// Returns the [`ThreadId`] of the current thread.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use sdd::Guard;
+    /// use std::thread;
+    ///
+    /// let guard = Guard::new();
+    /// assert_eq!(guard.thread_id(), thread::current().id());
+    ///
+    /// let guard_nested = Guard::new();
+    /// assert_eq!(guard.thread_id(), guard_nested.thread_id());
+    /// ```
+    #[inline]
+    #[must_use]
+    pub fn thread_id(&self) -> ThreadId {
+        unsafe { (*self.collector_ptr).thread_id() }
     }
 
     /// Defers dropping and memory reclamation of the supplied [`Box`] of a type implementing
@@ -72,9 +93,6 @@ impl Guard {
     /// the method was invoked is dropped, however it is totally non-deterministic when exactly the
     /// closure will be executed.
     ///
-    /// Note that the supplied closure is stored in the heap memory, and it has to be `Sync` as it
-    /// can be referred to by another thread.
-    ///
     /// # Examples
     ///
     /// ```
@@ -84,7 +102,7 @@ impl Guard {
     /// guard.defer_execute(|| println!("deferred"));
     /// ```
     #[inline]
-    pub fn defer_execute<F: 'static + FnOnce() + Sync>(&self, f: F) {
+    pub fn defer_execute<F: 'static + FnOnce()>(&self, f: F) {
         self.defer(Box::new(DeferredClosure::new(f)));
     }
 

@@ -52,12 +52,12 @@ pub trait Collectible {
 
 /// [`DeferredClosure`] implements [`Collectible`] for a closure to execute it after all the
 /// readers in the process at the moment are gone.
-pub(super) struct DeferredClosure<F: 'static + FnOnce() + Sync> {
+pub(super) struct DeferredClosure<F: 'static + FnOnce()> {
     f: Option<F>,
     link: Option<NonNull<dyn Collectible>>,
 }
 
-impl<F: 'static + FnOnce() + Sync> DeferredClosure<F> {
+impl<F: 'static + FnOnce()> DeferredClosure<F> {
     /// Creates a new [`DeferredClosure`].
     #[inline]
     pub fn new(f: F) -> Self {
@@ -68,7 +68,7 @@ impl<F: 'static + FnOnce() + Sync> DeferredClosure<F> {
     }
 }
 
-impl<F: 'static + FnOnce() + Sync> Collectible for DeferredClosure<F> {
+impl<F: 'static + FnOnce()> Collectible for DeferredClosure<F> {
     #[inline]
     fn next_ptr_mut(&mut self) -> &mut Option<NonNull<dyn Collectible>> {
         &mut self.link
