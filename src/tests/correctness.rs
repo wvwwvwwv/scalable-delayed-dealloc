@@ -109,7 +109,6 @@ mod test {
         }
     }
 
-    #[cfg_attr(miri, ignore)]
     #[test]
     fn sendable() {
         static DESTROYED: AtomicBool = AtomicBool::new(false);
@@ -125,7 +124,6 @@ mod test {
         assert_eq!(shared.0.load(Relaxed), shared.1);
     }
 
-    #[cfg_attr(miri, ignore)]
     #[test]
     fn shared_send() {
         static DESTROYED: AtomicBool = AtomicBool::new(false);
@@ -217,7 +215,6 @@ mod test {
         }
     }
 
-    #[cfg_attr(miri, ignore)]
     #[test]
     fn atomic_shared_send() {
         static DESTROYED: AtomicBool = AtomicBool::new(false);
