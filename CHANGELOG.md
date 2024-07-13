@@ -1,5 +1,9 @@
 # Changelog
 
+1.2.0
+
+* Remove `Collectible::drop_and_dealloc`.
+
 1.1.0
 
 * Add `prepare`.

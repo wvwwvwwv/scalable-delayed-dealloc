@@ -33,7 +33,6 @@ mod test {
         }
     }
 
-    #[cfg_attr(miri, ignore)]
     #[test]
     fn deferred() {
         static EXECUTED: AtomicBool = AtomicBool::new(false);
@@ -47,7 +46,6 @@ mod test {
         }
     }
 
-    #[cfg_attr(miri, ignore)]
     #[test]
     fn shared() {
         static DESTROYED: AtomicBool = AtomicBool::new(false);
@@ -85,7 +83,6 @@ mod test {
         }
     }
 
-    #[cfg_attr(miri, ignore)]
     #[test]
     fn owned() {
         static DESTROYED: AtomicBool = AtomicBool::new(false);
@@ -165,7 +162,6 @@ mod test {
         }
     }
 
-    #[cfg_attr(miri, ignore)]
     #[test]
     fn atomic_shared() {
         static DESTROYED: AtomicBool = AtomicBool::new(false);
@@ -197,7 +193,6 @@ mod test {
         }
     }
 
-    #[cfg_attr(miri, ignore)]
     #[test]
     fn atomic_owned() {
         static DESTROYED: AtomicBool = AtomicBool::new(false);
@@ -243,7 +238,6 @@ mod test {
         }
     }
 
-    #[cfg_attr(miri, ignore)]
     #[test]
     fn atomic_shared_creation() {
         static DESTROYED: AtomicBool = AtomicBool::new(false);
@@ -270,7 +264,6 @@ mod test {
         }
     }
 
-    #[cfg_attr(miri, ignore)]
     #[test]
     fn atomic_shared_conversion() {
         static DESTROYED: AtomicBool = AtomicBool::new(false);

@@ -193,7 +193,7 @@ impl<T> Owned<T> {
     /// ```
     #[inline]
     pub unsafe fn drop_in_place(mut self) {
-        self.instance_ptr.as_mut().drop_and_dealloc();
+        drop(Box::from_raw(self.instance_ptr.as_mut()));
         forget(self);
     }
 
@@ -225,8 +225,8 @@ impl<T> Owned<T> {
 
     #[inline]
     fn pass_underlying_to_collector(&mut self, guard: &Guard) {
-        let dyn_ref = self.underlying().as_collectible();
-        let dyn_mut_ptr: *mut dyn Collectible = unsafe { std::mem::transmute(dyn_ref) };
+        let dyn_mut: &mut dyn Collectible = unsafe { self.instance_ptr.as_mut() };
+        let dyn_mut_ptr: *mut dyn Collectible = unsafe { std::mem::transmute(dyn_mut) };
         guard.collect(dyn_mut_ptr);
     }
 }

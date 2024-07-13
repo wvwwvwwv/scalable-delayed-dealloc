@@ -179,7 +179,8 @@ impl Collector {
             // `drop_and_dealloc` may access `self.current_instance_link`.
             std::sync::atomic::compiler_fence(Acquire);
             unsafe {
-                instance_ptr.as_mut().drop_and_dealloc();
+                drop(Box::from_raw(instance_ptr.as_ptr()));
+                //instance_ptr.as_mut().drop_and_dealloc();
             }
             garbage_link = guard.take();
         }
@@ -259,8 +260,12 @@ impl Collector {
             let known_epoch = self.state.load(Relaxed);
             let mut update_global_epoch = true;
             let mut prev_collector_ptr: *mut Collector = ptr::null_mut();
-            while let Some(other_collector) = unsafe { collector_ptr.as_ref() } {
-                if !ptr::eq(self, other_collector) {
+            while !collector_ptr.is_null() {
+                if ptr::eq(self, collector_ptr) {
+                    prev_collector_ptr = collector_ptr;
+                    collector_ptr = self.next_link;
+                } else {
+                    let other_collector = unsafe { &*collector_ptr };
                     let other_state = other_collector.state.load(Relaxed);
                     if (other_state & Self::INVALID) != 0 {
                         // The collector is obsolete.
@@ -297,9 +302,9 @@ impl Collector {
                         update_global_epoch = false;
                         break;
                     }
+                    prev_collector_ptr = collector_ptr;
+                    collector_ptr = other_collector.next_link;
                 }
-                prev_collector_ptr = collector_ptr;
-                collector_ptr = other_collector.next_link;
             }
             if update_global_epoch {
                 // It is a new era; a fence is required.
@@ -381,12 +386,14 @@ fn try_drop_local_collector() {
                 .is_ok()
         {
             // If it is the head, and the only `Collector` in the global list, drop it here.
-            let guard = Guard::new_for_drop(collector_ptr);
             while collector.has_garbage {
+                let guard = Guard::new_for_drop(collector_ptr);
                 collector.epoch_updated();
+                drop(guard);
             }
-            drop(guard);
-            collector.drop_and_dealloc();
+            unsafe {
+                drop(Box::from_raw(collector_ptr));
+            }
             return;
         }
         collector.state.fetch_or(Collector::INVALID, Release);

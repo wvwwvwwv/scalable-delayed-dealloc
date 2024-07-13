@@ -37,17 +37,6 @@ use std::ptr::NonNull;
 pub trait Collectible {
     /// Returns a mutable reference to the next [`Collectible`] pointer.
     fn next_ptr_mut(&mut self) -> &mut Option<NonNull<dyn Collectible>>;
-
-    /// Drops itself and frees the memory.
-    ///
-    /// If the instance of the `Self` type is not created via [`Box::new`] or the like, this method
-    /// has to be implemented for the type.
-    #[inline]
-    fn drop_and_dealloc(&mut self) {
-        unsafe {
-            drop(Box::from_raw(self as *mut Self));
-        }
-    }
 }
 
 /// [`DeferredClosure`] implements [`Collectible`] for a closure to execute it after all the
@@ -73,14 +62,13 @@ impl<F: 'static + FnOnce()> Collectible for DeferredClosure<F> {
     fn next_ptr_mut(&mut self) -> &mut Option<NonNull<dyn Collectible>> {
         &mut self.link
     }
+}
 
+impl<F: 'static + FnOnce()> Drop for DeferredClosure<F> {
     #[inline]
-    fn drop_and_dealloc(&mut self) {
+    fn drop(&mut self) {
         if let Some(f) = self.f.take() {
             f();
-        }
-        unsafe {
-            drop(Box::from_raw(self as *mut Self));
         }
     }
 }
