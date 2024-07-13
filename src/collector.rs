@@ -366,22 +366,28 @@ fn mark_scan_enforced() {
 fn try_drop_local_collector() {
     let collector_ptr = LOCAL_COLLECTOR.with(|local_collector| local_collector.load(Relaxed));
     if let Some(collector) = unsafe { collector_ptr.as_mut() } {
-        if collector.next_link.is_null() {
-            let anchor_ptr = GLOBAL_ANCHOR.load(Relaxed);
-            if ptr::eq(collector_ptr, anchor_ptr)
-                && GLOBAL_ANCHOR
-                    .compare_exchange(anchor_ptr, ptr::null_mut(), Relaxed, Relaxed)
-                    .is_ok()
-            {
-                // If it is the head, and the only `Collector` in the global list, drop it here.
-                let guard = Guard::new_for_drop(collector_ptr);
-                while collector.has_garbage {
-                    collector.epoch_updated();
-                }
-                drop(guard);
-                collector.drop_and_dealloc();
-                return;
+        let mut anchor_ptr = GLOBAL_ANCHOR.load(Relaxed);
+        if Tag::into_tag(anchor_ptr) == Tag::Second {
+            // Another thread was joined before, and has yet to be cleaned up.
+            let guard = Guard::new_for_drop(collector_ptr);
+            collector.try_scan();
+            drop(guard);
+            anchor_ptr = GLOBAL_ANCHOR.load(Relaxed);
+        }
+        if collector.next_link.is_null()
+            && ptr::eq(collector_ptr, anchor_ptr)
+            && GLOBAL_ANCHOR
+                .compare_exchange(anchor_ptr, ptr::null_mut(), Relaxed, Relaxed)
+                .is_ok()
+        {
+            // If it is the head, and the only `Collector` in the global list, drop it here.
+            let guard = Guard::new_for_drop(collector_ptr);
+            while collector.has_garbage {
+                collector.epoch_updated();
             }
+            drop(guard);
+            collector.drop_and_dealloc();
+            return;
         }
         collector.state.fetch_or(Collector::INVALID, Release);
         mark_scan_enforced();

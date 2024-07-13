@@ -301,7 +301,7 @@ mod test {
         static DEALLOCATED: AtomicUsize = AtomicUsize::new(0);
 
         let num_threads = 16;
-        let num_iter = 16;
+        let num_iter = 32;
 
         for _ in 0..num_iter {
             assert!(suspend());

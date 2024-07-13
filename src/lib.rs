@@ -29,6 +29,32 @@ mod collector;
 mod exit_guard;
 mod ref_counted;
 
+/// Prepares a garbage collector for the current thread.
+///
+/// This method is useful in an environment where heap memory allocation is strictly controlled.
+/// [`Guard::new`] will never fail afterwards in the current thread until [`suspend`] is called as
+/// long as [`drop`] of every [`Collectible`] type is infallible.
+///
+/// # Panics
+///
+/// Panics if memory allocation failed.
+///
+/// # Examples
+///
+/// ```
+/// use sdd::{prepare, Guard};
+///
+/// prepare();
+///
+/// let guard = Guard::new();
+/// ```
+#[inline]
+pub fn prepare() {
+    // TODO: this needs to incorporate `allocator_api`.
+    let guard = Guard::new();
+    drop(guard);
+}
+
 /// Suspends the garbage collector of the current thread.
 ///
 /// If returns `false` if there is an active [`Guard`] in the thread. Otherwise, it passes all its

@@ -1,5 +1,9 @@
 # Changelog
 
+1.1.0
+
+* Add `prepare`.
+
 1.0.1
 
 * Relax trait bounds of `Guard::defer_execute`.
