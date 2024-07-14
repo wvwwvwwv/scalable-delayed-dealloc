@@ -1,5 +1,6 @@
-use super::collectible::{Collectible, DeferredClosure};
+use super::collectible::DeferredClosure;
 use super::collector::Collector;
+use super::{Collectible, Epoch};
 use std::panic::UnwindSafe;
 
 /// [`Guard`] allows the user to read [`AtomicShared`](super::AtomicShared) and keeps the
@@ -33,6 +34,66 @@ impl Guard {
         let collector_ptr = Collector::current();
         unsafe { (*collector_ptr).new_guard(true) };
         Self { collector_ptr }
+    }
+
+    /// Returns the epoch in which the current thread lives.
+    ///
+    /// This method can be used to check whether a retired memory region is potentially reachable or
+    /// not. A chunk of memory retired in a witnessed [`Epoch`] can be deallocated when the global
+    /// epoch value returns to the same [`Epoch`]. For instance, if the witnessed epoch value is `1` in
+    /// the current thread where the global epoch value is `2`, and an instance of a type is retired
+    /// in the same thread, the instance will be dropped when the thread witnesses `1` again.
+    ///
+    /// In other words, there can be potential readers of the memory chunk until the current thread
+    /// witnesses the same [`Epoch`] again. In the above example, the global epoch can be in `2`
+    /// while the current thread has only witnessed `1`, and therefore there can a reader of the
+    /// memory chunk in another thread in epoch `2`. The reader can survive until the global epoch
+    /// reaches `1` again, because the thread being in `2` prevents the global epoch to reach `1`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use sdd::{Guard, Owned};
+    /// use std::sync::atomic::AtomicBool;
+    /// use std::sync::atomic::Ordering::Relaxed;
+    ///
+    /// static DROPPED: AtomicBool = AtomicBool::new(false);
+    ///
+    /// struct D(&'static AtomicBool);
+    ///
+    /// impl Drop for D {
+    ///     fn drop(&mut self) {
+    ///         self.0.store(true, Relaxed);
+    ///     }
+    /// }
+    ///
+    /// let owned = Owned::new(D(&DROPPED));
+    ///
+    /// let epoch_before = Guard::new().epoch();
+    ///
+    /// drop(owned);
+    /// assert!(!DROPPED.load(Relaxed));
+    ///
+    /// while Guard::new().epoch() == epoch_before {
+    ///     assert!(!DROPPED.load(Relaxed));
+    /// }
+    ///
+    /// while Guard::new().epoch() == epoch_before.next() {
+    ///     assert!(!DROPPED.load(Relaxed));
+    /// }
+    ///
+    /// while Guard::new().epoch() == epoch_before.prev() {
+    ///     assert!(!DROPPED.load(Relaxed));
+    /// }
+    ///
+    /// assert!(DROPPED.load(Relaxed));
+    /// assert_eq!(Guard::new().epoch(), epoch_before);
+    ///
+    /// ```
+    #[inline]
+    #[must_use]
+    pub fn epoch(&self) -> Epoch {
+        unsafe { (*self.collector_ptr).announcement() }
     }
 
     /// Defers dropping and memory reclamation of the supplied [`Box`] of a type implementing

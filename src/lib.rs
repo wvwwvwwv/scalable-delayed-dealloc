@@ -13,6 +13,9 @@ pub use guard::Guard;
 mod collectible;
 pub use collectible::Collectible;
 
+mod epoch;
+pub use epoch::Epoch;
+
 mod owned;
 pub use owned::Owned;
 

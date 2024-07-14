@@ -1,5 +1,10 @@
 # Changelog
 
+1.3.0
+
+* Add `Epoch`
+* Add `Guard::epoch`.
+
 1.2.0
 
 * Remove `Collectible::drop_and_dealloc`.

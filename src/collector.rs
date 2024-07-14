@@ -1,5 +1,5 @@
 use super::exit_guard::ExitGuard;
-use super::{Collectible, Guard, Tag};
+use super::{Collectible, Epoch, Guard, Tag};
 use std::ptr::{self, NonNull};
 use std::sync::atomic::Ordering::{Acquire, Relaxed, Release, SeqCst};
 use std::sync::atomic::{fence, AtomicPtr, AtomicU8};
@@ -9,7 +9,7 @@ use std::sync::atomic::{fence, AtomicPtr, AtomicU8};
 #[derive(Debug)]
 pub(super) struct Collector {
     state: AtomicU8,
-    announcement: u8,
+    announcement: Epoch,
     next_epoch_update: u8,
     has_garbage: bool,
     num_readers: u32,
@@ -43,7 +43,7 @@ impl Collector {
         if self.num_readers == 0 {
             debug_assert_eq!(self.state.load(Relaxed) & Self::INACTIVE, Self::INACTIVE);
             self.num_readers = 1;
-            let new_epoch = EPOCH.load(Relaxed);
+            let new_epoch = Epoch::from_u8(EPOCH.load(Relaxed));
             if cfg!(any(target_arch = "x86", target_arch = "x86_64")) {
                 // This special optimization is excerpted from
                 // [`crossbeam_epoch`](https://docs.rs/crossbeam-epoch/).
@@ -51,10 +51,10 @@ impl Collector {
                 // The rationale behind the code is, it compiles to `lock xchg` that
                 // practically acts as a full memory barrier on `X86`, and is much faster than
                 // `mfence`.
-                self.state.swap(new_epoch, SeqCst);
+                self.state.swap(new_epoch.into(), SeqCst);
             } else {
                 // What will happen after the fence strictly happens after the fence.
-                self.state.store(new_epoch, Relaxed);
+                self.state.store(new_epoch.into(), Relaxed);
                 fence(SeqCst);
             }
             if self.announcement != new_epoch {
@@ -80,7 +80,7 @@ impl Collector {
     #[inline]
     pub(super) fn end_guard(&mut self) {
         debug_assert_eq!(self.state.load(Relaxed) & Self::INACTIVE, 0);
-        debug_assert_eq!(self.state.load(Relaxed), self.announcement);
+        debug_assert_eq!(self.state.load(Relaxed), self.announcement.into());
 
         if self.num_readers == 1 {
             if self.next_epoch_update == 0 {
@@ -98,11 +98,17 @@ impl Collector {
 
             // What has happened cannot happen after the thread setting itself inactive.
             self.state
-                .store(self.announcement | Self::INACTIVE, Release);
+                .store(u8::from(self.announcement) | Self::INACTIVE, Release);
             self.num_readers = 0;
         } else {
             self.num_readers -= 1;
         }
+    }
+
+    /// Returns the witnessed epoch.
+    #[inline]
+    pub(super) fn announcement(&self) -> Epoch {
+        self.announcement
     }
 
     /// Reclaims garbage instances.
@@ -156,7 +162,7 @@ impl Collector {
     /// Acknowledges a new global epoch.
     pub(super) fn epoch_updated(&mut self) {
         debug_assert_eq!(self.state.load(Relaxed) & Self::INACTIVE, 0);
-        debug_assert_eq!(self.state.load(Relaxed), self.announcement);
+        debug_assert_eq!(self.state.load(Relaxed), self.announcement.into());
 
         let mut garbage_link = self.next_instance_link.take();
         self.next_instance_link = self.previous_instance_link.take();
@@ -176,11 +182,10 @@ impl Collector {
                 }
             });
 
-            // `drop_and_dealloc` may access `self.current_instance_link`.
+            // The `drop` below may access `self.current_instance_link`.
             std::sync::atomic::compiler_fence(Acquire);
             unsafe {
                 drop(Box::from_raw(instance_ptr.as_ptr()));
-                //instance_ptr.as_mut().drop_and_dealloc();
             }
             garbage_link = guard.take();
         }
@@ -190,7 +195,7 @@ impl Collector {
     fn alloc() -> *mut Collector {
         let boxed = Box::new(Collector {
             state: AtomicU8::new(Self::INACTIVE),
-            announcement: 0,
+            announcement: Epoch::default(),
             next_epoch_update: Self::CADENCE,
             has_garbage: false,
             num_readers: 0,
@@ -225,7 +230,7 @@ impl Collector {
     /// Tries to scan the [`Collector`] instances to update the global epoch.
     fn try_scan(&mut self) {
         debug_assert_eq!(self.state.load(Relaxed) & Self::INACTIVE, 0);
-        debug_assert_eq!(self.state.load(Relaxed), self.announcement);
+        debug_assert_eq!(self.state.load(Relaxed), self.announcement.into());
 
         // Only one thread that acquires the anchor lock is allowed to scan the thread-local
         // collectors.
@@ -326,7 +331,7 @@ impl Drop for Collector {
     #[inline]
     fn drop(&mut self) {
         self.state.store(0, Relaxed);
-        self.announcement = 0;
+        self.announcement = Epoch::default();
         while self.has_garbage {
             self.epoch_updated();
         }

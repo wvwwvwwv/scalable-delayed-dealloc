@@ -6,6 +6,7 @@ crossbeam_epoch
 DashMap
 Dealloc
 deallocate
+deallocated
 deallocates
 deallocating
 deallocation
@@ -28,6 +29,7 @@ M2
 M3
 metadata
 overcount
+reachability
 reclaimer
 Resize
 resize
