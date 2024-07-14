@@ -316,12 +316,7 @@ impl Collector {
             if update_global_epoch {
                 // It is a new era; a fence is required.
                 fence(SeqCst);
-                let next_epoch = match known_epoch {
-                    0 => 1,
-                    1 => 2,
-                    _ => 0,
-                };
-                EPOCH.store(next_epoch, Relaxed);
+                EPOCH.store(Epoch::from_u8(known_epoch).next().into(), Relaxed);
             }
         }
     }
