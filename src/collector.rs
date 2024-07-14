@@ -16,7 +16,7 @@ pub(super) struct Collector {
     previous_instance_link: Option<NonNull<dyn Collectible>>,
     current_instance_link: Option<NonNull<dyn Collectible>>,
     next_instance_link: Option<NonNull<dyn Collectible>>,
-    next_link: *mut Collector,
+    next_link: AtomicPtr<Collector>,
     link: Option<NonNull<dyn Collectible>>,
 }
 
@@ -197,14 +197,16 @@ impl Collector {
             previous_instance_link: None,
             current_instance_link: None,
             next_instance_link: None,
-            next_link: ptr::null_mut(),
+            next_link: AtomicPtr::default(),
             link: None,
         });
         let ptr = Box::into_raw(boxed);
         let mut current = GLOBAL_ANCHOR.load(Relaxed);
         loop {
             unsafe {
-                (*ptr).next_link = Tag::unset_tag(current).cast_mut();
+                (*ptr)
+                    .next_link
+                    .store(Tag::unset_tag(current).cast_mut(), Relaxed);
             }
 
             // It keeps the tag intact.
@@ -244,10 +246,10 @@ impl Collector {
                     let result = a.fetch_update(Release, Relaxed, |p| {
                         let tag = Tag::into_tag(p);
                         debug_assert!(tag == Tag::First || tag == Tag::Both);
-                        let new_tag = if tag == Tag::Both {
-                            Tag::Second
-                        } else {
+                        let new_tag = if tag == Tag::First {
                             Tag::None
+                        } else {
+                            Tag::Second
                         };
                         Some(Tag::update_tag(p, new_tag).cast_mut())
                     });
@@ -263,49 +265,49 @@ impl Collector {
             while !collector_ptr.is_null() {
                 if ptr::eq(self, collector_ptr) {
                     prev_collector_ptr = collector_ptr;
-                    collector_ptr = self.next_link;
-                } else {
-                    let other_collector = unsafe { &*collector_ptr };
-                    let other_state = other_collector.state.load(Relaxed);
-                    if (other_state & Self::INVALID) != 0 {
-                        // The collector is obsolete.
-                        let reclaimable = unsafe { prev_collector_ptr.as_mut() }.map_or_else(
-                            || {
-                                GLOBAL_ANCHOR
-                                    .fetch_update(Release, Relaxed, |p| {
-                                        let tag = Tag::into_tag(p);
-                                        debug_assert!(tag == Tag::First || tag == Tag::Both);
-                                        if ptr::eq(Tag::unset_tag(p), collector_ptr) {
-                                            Some(
-                                                Tag::update_tag(other_collector.next_link, tag)
-                                                    .cast_mut(),
-                                            )
-                                        } else {
-                                            None
-                                        }
-                                    })
-                                    .is_ok()
-                            },
-                            |prev_collector| {
-                                prev_collector.next_link = other_collector.next_link;
-                                true
-                            },
-                        );
-                        if reclaimable {
-                            collector_ptr = other_collector.next_link;
-                            let ptr = (other_collector as *const Collector).cast_mut();
-                            self.reclaim(ptr);
-                            continue;
-                        }
-                    } else if (other_state & Self::INACTIVE) == 0 && other_state != known_epoch {
-                        // Not ready for an epoch update.
-                        update_global_epoch = false;
-                        break;
-                    }
-                    prev_collector_ptr = collector_ptr;
-                    collector_ptr = other_collector.next_link;
+                    collector_ptr = self.next_link.load(Relaxed);
+                    continue;
                 }
+
+                let collector_state = unsafe { (*collector_ptr).state.load(Relaxed) };
+                let next_collector_ptr = unsafe { (*collector_ptr).next_link.load(Relaxed) };
+                if (collector_state & Self::INVALID) != 0 {
+                    // The collector is obsolete.
+                    let result = if prev_collector_ptr.is_null() {
+                        GLOBAL_ANCHOR
+                            .fetch_update(Release, Relaxed, |p| {
+                                let tag = Tag::into_tag(p);
+                                debug_assert!(tag == Tag::First || tag == Tag::Both);
+                                if ptr::eq(Tag::unset_tag(p), collector_ptr) {
+                                    Some(Tag::update_tag(next_collector_ptr, tag).cast_mut())
+                                } else {
+                                    None
+                                }
+                            })
+                            .is_ok()
+                    } else {
+                        unsafe {
+                            (*prev_collector_ptr)
+                                .next_link
+                                .store(next_collector_ptr, Relaxed);
+                        }
+                        true
+                    };
+                    if result {
+                        self.reclaim(collector_ptr);
+                        collector_ptr = next_collector_ptr;
+                        continue;
+                    }
+                } else if (collector_state & Self::INACTIVE) == 0 && collector_state != known_epoch
+                {
+                    // Not ready for an epoch update.
+                    update_global_epoch = false;
+                    break;
+                }
+                prev_collector_ptr = collector_ptr;
+                collector_ptr = next_collector_ptr;
             }
+
             if update_global_epoch {
                 // It is a new era; a fence is required.
                 fence(SeqCst);
@@ -370,6 +372,11 @@ fn mark_scan_enforced() {
     });
 }
 
+/// Tries to drop the local [`Collector`] if it is the sole survivor.
+///
+/// # Safety
+///
+/// The function is safe to call only when the thread is being joined.
 unsafe fn try_drop_local_collector() {
     let collector_ptr = LOCAL_COLLECTOR.with(|local_collector| local_collector.load(Relaxed));
     if collector_ptr.is_null() {
@@ -383,7 +390,7 @@ unsafe fn try_drop_local_collector() {
         drop(guard);
         anchor_ptr = GLOBAL_ANCHOR.load(Relaxed);
     }
-    if (*collector_ptr).next_link.is_null()
+    if (*collector_ptr).next_link.load(Relaxed).is_null()
         && ptr::eq(collector_ptr, anchor_ptr)
         && GLOBAL_ANCHOR
             .compare_exchange(anchor_ptr, ptr::null_mut(), Relaxed, Relaxed)
@@ -395,9 +402,7 @@ unsafe fn try_drop_local_collector() {
             (*collector_ptr).epoch_updated();
             drop(guard);
         }
-        unsafe {
-            drop(Box::from_raw(collector_ptr));
-        }
+        drop(Box::from_raw(collector_ptr));
         return;
     }
     (*collector_ptr).state.fetch_or(Collector::INVALID, Release);

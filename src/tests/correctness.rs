@@ -285,9 +285,39 @@ mod test {
         }
     }
 
+    #[test]
+    fn reclaim_collector() {
+        static DEALLOCATED: AtomicUsize = AtomicUsize::new(0);
+
+        let num_threads = 16;
+        let num_iter = 32;
+
+        for _ in 0..num_iter {
+            assert!(suspend());
+
+            thread::scope(|s| {
+                for _ in 0..num_threads {
+                    assert!(s
+                        .spawn(|| {
+                            let owned = Owned::new(B(&DEALLOCATED));
+                            assert_ne!(owned.0.load(Relaxed), usize::MAX);
+                        })
+                        .join()
+                        .is_ok());
+                }
+            });
+
+            while DEALLOCATED.load(Relaxed) != num_threads {
+                thread::yield_now();
+                drop(Guard::new());
+            }
+            DEALLOCATED.store(0, Relaxed);
+        }
+    }
+
     #[cfg_attr(miri, ignore)]
     #[test]
-    fn multi_threaded() {
+    fn reclaim_collector_nested() {
         static DEALLOCATED: AtomicUsize = AtomicUsize::new(0);
 
         let num_threads = 16;

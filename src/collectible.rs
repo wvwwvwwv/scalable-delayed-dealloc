@@ -1,16 +1,12 @@
 use std::ptr::NonNull;
 
-/// [`Collectible`] defines key methods for `Self` to be reclaimed by the EBR garbage collector.
-///
-/// The module provides managed handles which implement [`Collectible`] in tandem with atomic
-/// reference counting, however it is also possible to manually implement the [`Collectible`] trait
-/// for a type to pass an instance of the type to the EBR garbage collector via
-/// [`Guard::defer`](super::Guard::defer).
+/// [`Collectible`] defines the memory layout for the type in order to be passed to the garbage
+/// collector.
 ///
 /// # Examples
 ///
 /// ```
-/// use sdd::{Guard, Collectible};
+/// use sdd::{Collectible, Guard};
 /// use std::ptr::NonNull;
 ///
 /// struct LazyString(String, Option<NonNull<dyn Collectible>>);
@@ -40,7 +36,7 @@ pub trait Collectible {
 }
 
 /// [`DeferredClosure`] implements [`Collectible`] for a closure to execute it after all the
-/// readers in the process at the moment are gone.
+/// current readers in the process are gone.
 pub(super) struct DeferredClosure<F: 'static + FnOnce()> {
     f: Option<F>,
     link: Option<NonNull<dyn Collectible>>,
