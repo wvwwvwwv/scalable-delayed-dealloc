@@ -107,7 +107,7 @@ impl Collector {
 
     /// Returns the witnessed epoch.
     #[inline]
-    pub(super) fn announcement(&self) -> Epoch {
+    pub(super) const fn announcement(&self) -> Epoch {
         self.announcement
     }
 

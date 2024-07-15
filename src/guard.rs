@@ -39,16 +39,18 @@ impl Guard {
     /// Returns the epoch in which the current thread lives.
     ///
     /// This method can be used to check whether a retired memory region is potentially reachable or
-    /// not. A chunk of memory retired in a witnessed [`Epoch`] can be deallocated when the global
-    /// epoch value returns to the same [`Epoch`]. For instance, if the witnessed epoch value is `1` in
-    /// the current thread where the global epoch value is `2`, and an instance of a type is retired
-    /// in the same thread, the instance will be dropped when the thread witnesses `1` again.
+    /// not. A chunk of memory retired in a witnessed [`Epoch`] can be deallocated after the thread
+    /// has observed three new epochs. For instance, if the witnessed epoch value is `1` in the
+    /// current thread where the global epoch value is `2`, and an instance of a [`Collectible`]
+    /// type is retired in the same thread, the instance can be dropped when the thread witnesses
+    /// `0` which is three epochs away from `1`.
     ///
     /// In other words, there can be potential readers of the memory chunk until the current thread
-    /// witnesses the same [`Epoch`] again. In the above example, the global epoch can be in `2`
+    /// witnesses the previous epoch. In the above example, the global epoch can be in `2`
     /// while the current thread has only witnessed `1`, and therefore there can a reader of the
     /// memory chunk in another thread in epoch `2`. The reader can survive until the global epoch
-    /// reaches `1` again, because the thread being in `2` prevents the global epoch to reach `1`.
+    /// reaches `0` again, because the thread being in `2` prevents the global epoch from reaching
+    /// `0`.
     ///
     /// # Examples
     ///
@@ -82,12 +84,12 @@ impl Guard {
     ///     assert!(!DROPPED.load(Relaxed));
     /// }
     ///
-    /// while Guard::new().epoch() == epoch_before.prev() {
+    /// while Guard::new().epoch() == epoch_before.next().next() {
     ///     assert!(!DROPPED.load(Relaxed));
     /// }
     ///
     /// assert!(DROPPED.load(Relaxed));
-    /// assert_eq!(Guard::new().epoch(), epoch_before);
+    /// assert_eq!(Guard::new().epoch(), epoch_before.prev());
     ///
     /// ```
     #[inline]

@@ -1,5 +1,9 @@
 # Changelog
 
+1.4.0
+
+* `Epoch` is now a 4-state type (3 -> 4).
+
 1.3.0
 
 * Add `Epoch`

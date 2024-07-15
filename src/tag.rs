@@ -2,7 +2,7 @@ use std::cmp::PartialEq;
 
 /// [`Tag`] is a four-state `Enum` that can be embedded in a pointer as the two least
 /// significant bits of the pointer value.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Tag {
     /// None tagged.
     None,
