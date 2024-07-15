@@ -109,6 +109,12 @@ impl Collector {
     /// Returns the current epoch.
     #[inline]
     pub(super) fn current_epoch() -> Epoch {
+        // It is called by an active `Guard` therefore it is after a `SeqCst` memory barrier. Each
+        // epoch update is preceded by another `SeqCst` memory barrier, therefore those two events
+        // are globally ordered. If the `SeqCst` event during the `Guard` creation happened before
+        // the other `SeqCst` event, this will either load the last previous epoch value, or the
+        // current value. If not, it is guaranteed that it reads the most latest global epoch
+        // value.
         Epoch::from_u8(EPOCH.load(Relaxed))
     }
 
@@ -317,7 +323,7 @@ impl Collector {
             if update_global_epoch {
                 // It is a new era; a fence is required.
                 fence(SeqCst);
-                EPOCH.swap(Epoch::from_u8(known_epoch).next().into(), Relaxed);
+                EPOCH.store(Epoch::from_u8(known_epoch).next().into(), Relaxed);
             }
         }
     }
