@@ -113,8 +113,7 @@ impl Collector {
         // epoch update is preceded by another `SeqCst` memory barrier, therefore those two events
         // are globally ordered. If the `SeqCst` event during the `Guard` creation happened before
         // the other `SeqCst` event, this will either load the last previous epoch value, or the
-        // current value. If not, it is guaranteed that it reads the most latest global epoch
-        // value.
+        // current value. If not, it is guaranteed that it reads the latest global epoch value.
         Epoch::from_u8(EPOCH.load(Relaxed))
     }
 
