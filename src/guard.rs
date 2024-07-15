@@ -95,7 +95,7 @@ impl Guard {
     #[inline]
     #[must_use]
     pub fn epoch(&self) -> Epoch {
-        unsafe { (*self.collector_ptr).announcement() }
+        Collector::current_epoch()
     }
 
     /// Defers dropping and memory reclamation of the supplied [`Box`] of a type implementing

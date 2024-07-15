@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod model {
+mod test_model {
     use loom::sync::atomic::fence;
     use loom::sync::atomic::{AtomicBool, AtomicU8};
     use std::sync::atomic::AtomicUsize;
@@ -49,7 +49,7 @@ mod model {
                     _ => 0,
                 };
                 fence(SeqCst);
-                epoch.store(new, Relaxed);
+                epoch.swap(new, Relaxed);
                 self.state.store(new, Relaxed);
                 known_epoch = new;
                 self.epoch_updated(ptr);
@@ -75,10 +75,10 @@ mod model {
         reclaimed: AtomicBool,
     }
 
-    /// This model requires `https://github.com/tokio-rs/loom/pull/220`.
     #[test]
     #[ignore]
     fn ebr() {
+        // TODO: need to use the real code.
         let mut model = loom::model::Builder::new();
         let reclaimed = Arc::new(AtomicUsize::new(0));
         let reclaimed_clone = reclaimed.clone();

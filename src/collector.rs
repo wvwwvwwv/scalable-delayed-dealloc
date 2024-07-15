@@ -96,7 +96,8 @@ impl Collector {
                 self.next_epoch_update = self.next_epoch_update.saturating_sub(1);
             }
 
-            // What has happened cannot happen after the thread setting itself inactive.
+            // What has happened cannot be observed after the thread setting itself inactive has
+            // been witnessed.
             self.state
                 .store(u8::from(self.announcement) | Self::INACTIVE, Release);
             self.num_readers = 0;
@@ -105,10 +106,10 @@ impl Collector {
         }
     }
 
-    /// Returns the witnessed epoch.
+    /// Returns the current epoch.
     #[inline]
-    pub(super) const fn announcement(&self) -> Epoch {
-        self.announcement
+    pub(super) fn current_epoch() -> Epoch {
+        Epoch::from_u8(EPOCH.load(Relaxed))
     }
 
     /// Reclaims garbage instances.
@@ -316,7 +317,7 @@ impl Collector {
             if update_global_epoch {
                 // It is a new era; a fence is required.
                 fence(SeqCst);
-                EPOCH.store(Epoch::from_u8(known_epoch).next().into(), Relaxed);
+                EPOCH.swap(Epoch::from_u8(known_epoch).next().into(), Relaxed);
             }
         }
     }
