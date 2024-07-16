@@ -1,8 +1,8 @@
 use super::exit_guard::ExitGuard;
+use super::hidden::{fence, AtomicPtr, AtomicU8};
 use super::{Collectible, Epoch, Guard, Tag};
 use std::ptr::{self, NonNull};
 use std::sync::atomic::Ordering::{Acquire, Relaxed, Release, SeqCst};
-use std::sync::atomic::{fence, AtomicPtr, AtomicU8};
 
 /// [`Collector`] is a garbage collector that reclaims thread-locally unreachable instances
 /// when they are globally unreachable.
@@ -43,7 +43,7 @@ impl Collector {
         if self.num_readers == 0 {
             debug_assert_eq!(self.state.load(Relaxed) & Self::INACTIVE, Self::INACTIVE);
             self.num_readers = 1;
-            let new_epoch = Epoch::from_u8(EPOCH.load(Relaxed));
+            let new_epoch = Epoch::from_u8(epoch().load(Relaxed));
             if cfg!(any(target_arch = "x86", target_arch = "x86_64")) {
                 // This special optimization is excerpted from
                 // [`crossbeam_epoch`](https://docs.rs/crossbeam-epoch/).
@@ -84,7 +84,7 @@ impl Collector {
 
         if self.num_readers == 1 {
             if self.next_epoch_update == 0 {
-                if self.has_garbage || Tag::into_tag(GLOBAL_ANCHOR.load(Relaxed)) != Tag::First {
+                if self.has_garbage || Tag::into_tag(global_anchor().load(Relaxed)) != Tag::First {
                     self.try_scan();
                 }
                 self.next_epoch_update = if self.has_garbage {
@@ -114,7 +114,7 @@ impl Collector {
         // are globally ordered. If the `SeqCst` event during the `Guard` creation happened before
         // the other `SeqCst` event, this will either load the last previous epoch value, or the
         // current value. If not, it is guaranteed that it reads the latest global epoch value.
-        Epoch::from_u8(EPOCH.load(Relaxed))
+        Epoch::from_u8(epoch().load(Relaxed))
     }
 
     /// Reclaims garbage instances.
@@ -212,7 +212,7 @@ impl Collector {
             link: None,
         });
         let ptr = Box::into_raw(boxed);
-        let mut current = GLOBAL_ANCHOR.load(Relaxed);
+        let mut current = global_anchor().load(Relaxed);
         loop {
             unsafe {
                 (*ptr)
@@ -223,7 +223,8 @@ impl Collector {
             // It keeps the tag intact.
             let tag = Tag::into_tag(current);
             let new = Tag::update_tag(ptr, tag).cast_mut();
-            if let Err(actual) = GLOBAL_ANCHOR.compare_exchange_weak(current, new, Release, Relaxed)
+            if let Err(actual) =
+                global_anchor().compare_exchange_weak(current, new, Release, Relaxed)
             {
                 current = actual;
             } else {
@@ -240,7 +241,7 @@ impl Collector {
 
         // Only one thread that acquires the anchor lock is allowed to scan the thread-local
         // collectors.
-        let lock_result = GLOBAL_ANCHOR
+        let lock_result = global_anchor()
             .fetch_update(Acquire, Acquire, |p| {
                 let tag = Tag::into_tag(p);
                 if tag == Tag::First || tag == Tag::Both {
@@ -251,7 +252,7 @@ impl Collector {
             })
             .map(|p| Tag::unset_tag(p).cast_mut());
         if let Ok(mut collector_ptr) = lock_result {
-            let _guard = ExitGuard::new(&GLOBAL_ANCHOR, |a| {
+            let _guard = ExitGuard::new(global_anchor(), |a| {
                 // Unlock the anchor.
                 loop {
                     let result = a.fetch_update(Release, Relaxed, |p| {
@@ -285,7 +286,7 @@ impl Collector {
                 if (collector_state & Self::INVALID) != 0 {
                     // The collector is obsolete.
                     let result = if prev_collector_ptr.is_null() {
-                        GLOBAL_ANCHOR
+                        global_anchor()
                             .fetch_update(Release, Relaxed, |p| {
                                 let tag = Tag::into_tag(p);
                                 debug_assert!(tag == Tag::First || tag == Tag::Both);
@@ -322,7 +323,7 @@ impl Collector {
             if update_global_epoch {
                 // It is a new era; a fence is required.
                 fence(SeqCst);
-                EPOCH.store(Epoch::from_u8(known_epoch).next().into(), Relaxed);
+                epoch().store(Epoch::from_u8(known_epoch).next().into(), Relaxed);
             }
         }
     }
@@ -368,7 +369,7 @@ impl Drop for CollectorAnchor {
 /// Marks `ANCHOR` that there is a potentially unreachable `Collector`.
 fn mark_scan_enforced() {
     // `Tag::Second` indicates that there is a garbage `Collector`.
-    let _result = GLOBAL_ANCHOR.fetch_update(Release, Relaxed, |p| {
+    let _result = global_anchor().fetch_update(Release, Relaxed, |p| {
         let new_tag = match Tag::into_tag(p) {
             Tag::None => Tag::Second,
             Tag::First => Tag::Both,
@@ -388,17 +389,17 @@ unsafe fn try_drop_local_collector() {
     if collector_ptr.is_null() {
         return;
     }
-    let mut anchor_ptr = GLOBAL_ANCHOR.load(Relaxed);
+    let mut anchor_ptr = global_anchor().load(Relaxed);
     if Tag::into_tag(anchor_ptr) == Tag::Second {
         // Another thread was joined before, and has yet to be cleaned up.
         let guard = Guard::new_for_drop(collector_ptr);
         (*collector_ptr).try_scan();
         drop(guard);
-        anchor_ptr = GLOBAL_ANCHOR.load(Relaxed);
+        anchor_ptr = global_anchor().load(Relaxed);
     }
     if (*collector_ptr).next_link.load(Relaxed).is_null()
         && ptr::eq(collector_ptr, anchor_ptr)
-        && GLOBAL_ANCHOR
+        && global_anchor()
             .compare_exchange(anchor_ptr, ptr::null_mut(), Relaxed, Relaxed)
             .is_ok()
     {
@@ -424,7 +425,30 @@ thread_local! {
 ///
 /// The global epoch can have one of 0, 1, or 2, and a difference in the local announcement of
 /// a thread and the global is considered to be an epoch change to the thread.
-static EPOCH: AtomicU8 = AtomicU8::new(0);
+fn epoch() -> &'static AtomicU8 {
+    #[cfg(not(all(loom, test)))]
+    {
+        static EPOCH: AtomicU8 = AtomicU8::new(0);
+        &EPOCH
+    }
+    #[cfg(all(loom, test))]
+    {
+        static EPOCH: std::sync::OnceLock<AtomicU8> = std::sync::OnceLock::new();
+        EPOCH.get_or_init(|| AtomicU8::new(0))
+    }
+}
 
 /// The global anchor for thread-local instances of [`Collector`].
-static GLOBAL_ANCHOR: AtomicPtr<Collector> = AtomicPtr::new(ptr::null_mut());
+fn global_anchor() -> &'static AtomicPtr<Collector> {
+    #[cfg(not(all(loom, test)))]
+    {
+        static GLOBAL_ANCHOR: AtomicPtr<Collector> = AtomicPtr::new(ptr::null_mut());
+        &GLOBAL_ANCHOR
+    }
+    #[cfg(all(loom, test))]
+    {
+        static GLOBAL_ANCHOR: std::sync::OnceLock<AtomicPtr<Collector>> =
+            std::sync::OnceLock::new();
+        GLOBAL_ANCHOR.get_or_init(|| AtomicPtr::new(ptr::null_mut()))
+    }
+}

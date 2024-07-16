@@ -1,5 +1,6 @@
 #[cfg(test)]
-mod test {
+#[cfg(not(loom))]
+mod test_correctness {
     use crate::collector::Collector;
     use crate::{suspend, AtomicOwned, AtomicShared, Guard, Owned, Ptr, Shared, Tag};
     use std::ops::Deref;

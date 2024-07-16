@@ -89,5 +89,15 @@ pub fn suspend() -> bool {
     collector::Collector::pass_garbage()
 }
 
+#[cfg(not(all(test, loom)))]
+mod hidden {
+    pub(crate) use std::sync::atomic::{fence, AtomicPtr, AtomicU8};
+}
+
+#[cfg(all(test, loom))]
+mod hidden {
+    pub(crate) use loom::sync::atomic::{fence, AtomicPtr, AtomicU8};
+}
+
 #[cfg(test)]
 mod tests;

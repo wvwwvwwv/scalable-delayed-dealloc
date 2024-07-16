@@ -25,8 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Prepare
-        run:
-          sudo apt-get install gcc-multilib;
+        run: sudo apt-get install gcc-multilib;
           rustup target add i686-unknown-linux-gnu;
           rustup toolchain add nightly;
           rustup component add rust-src --toolchain nightly;
@@ -40,17 +39,16 @@ jobs:
       - name: Spell-check
         run: cargo spellcheck check
       - name: Format
-        run:
-          cargo fmt --check;
+        run: cargo fmt --check;
           cargo fmt -p examples --check
       - name: Examples
-        run:
-          RUST_BACKTRACE=1 cargo test --release -p examples -- --nocapture;
+        run: RUST_BACKTRACE=1 cargo test --release -p examples -- --nocapture;
           RUST_BACKTRACE=1 cargo test --target i686-unknown-linux-gnu --release -p examples -- --nocapture;
           RUST_BACKTRACE=1 cargo +nightly test --release -p examples -- --nocapture;
       - name: Doc
-        run:
-          cargo doc --document-private-items;
+        run: cargo doc --document-private-items;
+      - name: Loom
+        run: RUSTFLAGS="--cfg loom" cargo test --release --lib
       - name: Miri
         run: cargo +nightly miri test --lib --bins --tests
   benchmark:

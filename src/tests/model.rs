@@ -1,4 +1,4 @@
-#[cfg(test)]
+#[cfg(all(loom, test))]
 mod test_model {
     use loom::sync::atomic::fence;
     use loom::sync::atomic::{AtomicBool, AtomicU8};
@@ -76,7 +76,6 @@ mod test_model {
     }
 
     #[test]
-    #[ignore]
     fn ebr() {
         // TODO: need to use the real code.
         let mut model = loom::model::Builder::new();
