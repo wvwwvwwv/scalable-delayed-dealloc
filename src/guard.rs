@@ -98,6 +98,29 @@ impl Guard {
         Collector::current_epoch()
     }
 
+    /// Forces the [`Guard`] to try to start a new epoch when it is dropped.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use sdd::Guard;
+    ///
+    /// let guard = Guard::new();
+    ///
+    /// let epoch = guard.epoch();
+    /// guard.accelerate();
+    ///
+    /// drop(guard);
+    ///
+    /// assert_ne!(epoch, Guard::new().epoch());
+    /// ```
+    #[inline]
+    pub fn accelerate(&self) {
+        unsafe {
+            (*self.collector_ptr).accelerate();
+        }
+    }
+
     /// Defers dropping and memory reclamation of the supplied [`Box`] of a type implementing
     /// [`Collectible`].
     ///

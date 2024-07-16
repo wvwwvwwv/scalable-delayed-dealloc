@@ -1,5 +1,13 @@
 # Changelog
 
+1.6.0
+
+* Add `Guard::accelerate`.
+
+1.5.0
+
+* Fix `Guard::epoch` to return the correct epoch value.
+
 1.4.0
 
 * `Epoch` is now a 4-state type (3 -> 4).

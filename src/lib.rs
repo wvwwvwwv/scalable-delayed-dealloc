@@ -53,7 +53,6 @@ mod ref_counted;
 /// ```
 #[inline]
 pub fn prepare() {
-    // TODO: this needs to incorporate `allocator_api`.
     let guard = Guard::new();
     drop(guard);
 }
@@ -90,13 +89,15 @@ pub fn suspend() -> bool {
 }
 
 #[cfg(not(all(test, loom)))]
-mod hidden {
+mod augmented {
     pub(crate) use std::sync::atomic::{fence, AtomicPtr, AtomicU8};
+    pub(crate) use std::thread_local;
 }
 
 #[cfg(all(test, loom))]
-mod hidden {
+mod augmented {
     pub(crate) use loom::sync::atomic::{fence, AtomicPtr, AtomicU8};
+    pub(crate) use loom::thread_local;
 }
 
 #[cfg(test)]
