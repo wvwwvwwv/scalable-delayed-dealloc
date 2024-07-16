@@ -29,13 +29,13 @@ impl Collector {
     const CADENCE: u8 = u8::MAX;
 
     /// A bit field representing a thread state where the thread does not have a
-    /// [`Guard`].
+    /// [`Guard`](super::Guard).
     const INACTIVE: u8 = 1_u8 << 2;
 
     /// A bit field representing a thread state where the thread has been terminated.
     const INVALID: u8 = 1_u8 << 3;
 
-    /// Acknowledges a new [`Guard`] being instantiated.
+    /// Acknowledges a new [`Guard`](super::Guard) being instantiated.
     ///
     /// Returns `true` if a new epoch was announced.
     ///
@@ -87,7 +87,7 @@ impl Collector {
         self.next_epoch_update = 0;
     }
 
-    /// Acknowledges an existing [`Guard`] being dropped.
+    /// Acknowledges an existing [`Guard`](super::Guard) being dropped.
     #[inline]
     pub(super) fn end_guard(&mut self) {
         debug_assert_eq!(self.state.load(Relaxed) & Self::INACTIVE, 0);
@@ -381,7 +381,6 @@ impl Drop for CollectorAnchor {
 }
 
 /// Marks `ANCHOR` that there is a potentially unreachable `Collector`.
-#[inline]
 fn mark_scan_enforced() {
     // `Tag::Second` indicates that there is a garbage `Collector`.
     let _result = global_anchor().fetch_update(Release, Relaxed, |p| {
