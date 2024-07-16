@@ -44,6 +44,7 @@ jobs:
       - name: Examples
         run: RUST_BACKTRACE=1 cargo test --release -p examples -- --nocapture;
           RUST_BACKTRACE=1 cargo test --target i686-unknown-linux-gnu --release -p examples -- --nocapture;
+          RUST_BACKTRACE=1 cargo +nightly test --release -p examples -- --nocapture;
       - name: Doc
         run: cargo doc --document-private-items;
       - name: Loom
