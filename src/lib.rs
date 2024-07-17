@@ -88,14 +88,24 @@ pub fn suspend() -> bool {
     collector::Collector::pass_garbage()
 }
 
-#[cfg(not(all(test, loom)))]
-mod augmented {
+#[cfg(not(feature = "sdd_loom"))]
+mod optional_public {
+    pub(crate) use std::sync::atomic::AtomicPtr;
+}
+
+#[cfg(feature = "sdd_loom")]
+mod optional_public {
+    pub(crate) use loom::sync::atomic::AtomicPtr;
+}
+
+#[cfg(not(loom_test))]
+mod optional_private {
     pub(crate) use std::sync::atomic::{fence, AtomicPtr, AtomicU8};
     pub(crate) use std::thread_local;
 }
 
-#[cfg(all(test, loom))]
-mod augmented {
+#[cfg(loom_test)]
+mod optional_private {
     pub(crate) use loom::sync::atomic::{fence, AtomicPtr, AtomicU8};
     pub(crate) use loom::thread_local;
 }

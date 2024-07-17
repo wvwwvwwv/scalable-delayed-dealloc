@@ -95,7 +95,7 @@ impl Guard {
     #[inline]
     #[must_use]
     pub fn epoch(&self) -> Epoch {
-        Collector::current_epoch()
+        unsafe { (*self.collector_ptr).current_epoch() }
     }
 
     /// Forces the [`Guard`] to try to start a new epoch when it is dropped.

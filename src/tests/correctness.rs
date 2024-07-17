@@ -1,5 +1,5 @@
 #[cfg(test)]
-#[cfg(not(loom))]
+#[cfg(not(loom_test))]
 mod test_correctness {
     use crate::collector::Collector;
     use crate::{suspend, AtomicOwned, AtomicShared, Guard, Owned, Ptr, Shared, Tag};

@@ -15,15 +15,17 @@ keywords = ["concurrent", "epoch", "garbage", "lock-free", "memory"]
 [workspace]
 members = [".", "examples"]
 
+[dependencies]
+loom = { version = "0.7", optional = true }
+
+[features]
+sdd_loom = ["loom"]
+
 [dev-dependencies]
 criterion = "0.5"
 futures = "0.3"
-loom = "0.7"
 static_assertions = "1.1"
 tokio = { version = "1.38", features = ["full"] }
-
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)'] }
 
 [[bench]]
 name = "ebr"

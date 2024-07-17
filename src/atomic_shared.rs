@@ -1,9 +1,9 @@
+use super::optional_public::AtomicPtr;
 use super::ref_counted::RefCounted;
 use super::{Guard, Ptr, Shared, Tag};
 use std::mem::forget;
 use std::panic::UnwindSafe;
 use std::ptr::{null_mut, NonNull};
-use std::sync::atomic::AtomicPtr;
 use std::sync::atomic::Ordering::{self, Acquire, Relaxed};
 
 /// [`AtomicShared`] owns the underlying instance, and allows users to perform atomic operations
@@ -52,9 +52,22 @@ impl<T> AtomicShared<T> {
     /// let shared: Shared<usize> = Shared::new(10);
     /// let atomic_shared: AtomicShared<usize> = AtomicShared::from(shared);
     /// ```
+    #[cfg(not(feature = "sdd_loom"))]
     #[inline]
     #[must_use]
     pub const fn from(shared: Shared<T>) -> Self {
+        let ptr = shared.get_underlying_ptr();
+        forget(shared);
+        Self {
+            instance_ptr: AtomicPtr::new(ptr),
+        }
+    }
+
+    /// Creates a new [`AtomicShared`] from a [`Shared`] of `T`.
+    #[cfg(feature = "sdd_loom")]
+    #[inline]
+    #[must_use]
+    pub fn from(shared: Shared<T>) -> Self {
         let ptr = shared.get_underlying_ptr();
         forget(shared);
         Self {
@@ -71,9 +84,20 @@ impl<T> AtomicShared<T> {
     ///
     /// let atomic_shared: AtomicShared<usize> = AtomicShared::null();
     /// ```
+    #[cfg(not(feature = "sdd_loom"))]
     #[inline]
     #[must_use]
     pub const fn null() -> Self {
+        Self {
+            instance_ptr: AtomicPtr::new(null_mut()),
+        }
+    }
+
+    /// Creates a null [`AtomicShared`].
+    #[cfg(feature = "sdd_loom")]
+    #[inline]
+    #[must_use]
+    pub fn null() -> Self {
         Self {
             instance_ptr: AtomicPtr::new(null_mut()),
         }
