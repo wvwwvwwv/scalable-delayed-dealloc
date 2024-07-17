@@ -27,7 +27,7 @@ sdd_loom = ["loom"]
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom_test)'] }
 
-[target.'cfg(sdd_loom)'.dependencies]
+[target.'cfg(loom_test)'.dependencies]
 loom = { version = "0.7", optional = true }
 
 [[bench]]
