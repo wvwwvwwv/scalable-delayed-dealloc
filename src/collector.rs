@@ -1,25 +1,20 @@
 use super::exit_guard::ExitGuard;
-use super::optional_private::fence as augmented_fence;
-use super::optional_private::thread_local as augmented_thread_local;
-use super::optional_private::AtomicPtr as AugmentedAtomicPtr;
-use super::optional_private::AtomicU8 as AugmentedAtomicU8;
+use super::maybe_std::fence as maybe_std_fence;
 use super::{Collectible, Epoch, Tag};
 use std::ptr::{self, NonNull};
-use std::sync::atomic::AtomicPtr;
-use std::sync::atomic::Ordering::{AcqRel, Acquire, Relaxed, Release, SeqCst};
-use std::sync::Arc;
+use std::sync::atomic::Ordering::{Acquire, Relaxed, Release, SeqCst};
+use std::sync::atomic::{AtomicPtr, AtomicU8};
 
 /// [`Collector`] is a garbage collector that reclaims thread-locally unreachable instances
 /// when they are globally unreachable.
 #[derive(Debug)]
 #[repr(align(128))]
 pub(super) struct Collector {
-    state: AugmentedAtomicU8,
+    state: AtomicU8,
     announcement: Epoch,
     next_epoch_update: u8,
     has_garbage: bool,
     num_readers: u32,
-    root: Arc<CollectorRoot>,
     previous_instance_link: Option<NonNull<dyn Collectible>>,
     current_instance_link: Option<NonNull<dyn Collectible>>,
     next_instance_link: Option<NonNull<dyn Collectible>>,
@@ -30,13 +25,9 @@ pub(super) struct Collector {
 /// Data stored in a [`CollectorRoot`] is shared among [`Collector`] instances.
 #[derive(Debug, Default)]
 pub(super) struct CollectorRoot {
-    epoch: AugmentedAtomicU8,
-    chain_head: AugmentedAtomicPtr<Collector>,
+    epoch: AtomicU8,
+    chain_head: AtomicPtr<Collector>,
 }
-
-/// [`GlobalRoot`] provides the globally accessible [`CollectorRoot`].
-#[derive(Debug, Default)]
-struct GlobalRoot(AtomicPtr<CollectorRoot>);
 
 /// [`CollectorAnchor`] helps allocate and cleanup the thread-local [`Collector`].
 struct CollectorAnchor;
@@ -64,8 +55,13 @@ impl Collector {
         if self.num_readers == 0 {
             debug_assert_eq!(self.state.load(Relaxed) & Self::INACTIVE, Self::INACTIVE);
             self.num_readers = 1;
-            let new_epoch = Epoch::from_u8(self.root.epoch.load(Relaxed));
-            if cfg!(any(target_arch = "x86", target_arch = "x86_64")) {
+            let new_epoch = Epoch::from_u8(GLOBAL_ROOT.epoch.load(Relaxed));
+            if cfg!(feature = "loom") || cfg!(not(any(target_arch = "x86", target_arch = "x86_64")))
+            {
+                // What will happen after the fence strictly happens after the fence.
+                self.state.store(new_epoch.into(), Relaxed);
+                maybe_std_fence(SeqCst);
+            } else {
                 // This special optimization is excerpted from
                 // [`crossbeam_epoch`](https://docs.rs/crossbeam-epoch/).
                 //
@@ -73,10 +69,6 @@ impl Collector {
                 // practically acts as a full memory barrier on `X86`, and is much faster than
                 // `mfence`.
                 self.state.swap(new_epoch.into(), SeqCst);
-            } else {
-                // What will happen after the fence strictly happens after the fence.
-                self.state.store(new_epoch.into(), Relaxed);
-                augmented_fence(SeqCst);
             }
             if self.announcement != new_epoch {
                 self.announcement = new_epoch;
@@ -100,7 +92,7 @@ impl Collector {
     #[inline]
     /// Accelerates garbage collection.
     pub(super) fn accelerate(&mut self) {
-        mark_scan_enforced(&self.root.chain_head);
+        mark_scan_enforced();
         self.next_epoch_update = 0;
     }
 
@@ -113,7 +105,7 @@ impl Collector {
         if self.num_readers == 1 {
             if self.next_epoch_update == 0 {
                 if self.has_garbage
-                    || Tag::into_tag(self.root.chain_head.load(Relaxed)) != Tag::First
+                    || Tag::into_tag(GLOBAL_ROOT.chain_head.load(Relaxed)) != Tag::First
                 {
                     self.try_scan();
                 }
@@ -138,13 +130,13 @@ impl Collector {
 
     /// Returns the current epoch.
     #[inline]
-    pub(super) fn current_epoch(&self) -> Epoch {
+    pub(super) fn current_epoch() -> Epoch {
         // It is called by an active `Guard` therefore it is after a `SeqCst` memory barrier. Each
         // epoch update is preceded by another `SeqCst` memory barrier, therefore those two events
         // are globally ordered. If the `SeqCst` event during the `Guard` creation happened before
         // the other `SeqCst` event, this will either load the last previous epoch value, or the
         // current value. If not, it is guaranteed that it reads the latest global epoch value.
-        Epoch::from_u8(self.root.epoch.load(Relaxed))
+        Epoch::from_u8(GLOBAL_ROOT.epoch.load(Relaxed))
     }
 
     /// Reclaims garbage instances.
@@ -176,24 +168,6 @@ impl Collector {
         })
     }
 
-    /// Sets a [`Collector`] associated with the supplied [`CollectorRoot`] to the thread.
-    ///
-    /// # Safety
-    ///
-    /// It is unsafe. Never use this method outside test code.
-    ///
-    /// # Panics
-    ///
-    /// Panics if a [`Collector`] is previously set.
-    #[cfg(all(feature = "loom", test))]
-    pub(super) unsafe fn set_root(root: &Arc<CollectorRoot>) {
-        LOCAL_COLLECTOR.with(|local_collector| {
-            assert!(local_collector.load(Relaxed).is_null());
-            let collector_ptr = Collector::alloc(root);
-            local_collector.store(collector_ptr, Relaxed);
-        });
-    }
-
     /// Passes its garbage instances to other threads.
     #[inline]
     pub(super) fn pass_garbage() -> bool {
@@ -206,7 +180,7 @@ impl Collector {
                 if collector.has_garbage {
                     collector.state.fetch_or(Collector::INVALID, Release);
                     local_collector.store(ptr::null_mut(), Relaxed);
-                    mark_scan_enforced(&collector.root.chain_head);
+                    mark_scan_enforced();
                 }
             }
             true
@@ -252,8 +226,7 @@ impl Collector {
 
         // Only one thread that acquires the chain lock is allowed to scan the thread-local
         // collectors.
-        let lock_result = self
-            .root
+        let lock_result = GLOBAL_ROOT
             .chain_head
             .fetch_update(Acquire, Acquire, |p| {
                 let tag = Tag::into_tag(p);
@@ -265,10 +238,10 @@ impl Collector {
             })
             .map(|p| Tag::unset_tag(p).cast_mut());
         if let Ok(mut collector_ptr) = lock_result {
-            let mut self_guard = ExitGuard::new(self, |a| {
+            let mut self_guard = ExitGuard::new(self, |_| {
                 // Unlock the chain.
                 loop {
-                    let result = a.root.chain_head.fetch_update(Release, Relaxed, |p| {
+                    let result = GLOBAL_ROOT.chain_head.fetch_update(Release, Relaxed, |p| {
                         let tag = Tag::into_tag(p);
                         debug_assert!(tag == Tag::First || tag == Tag::Both);
                         let new_tag = if tag == Tag::First {
@@ -299,8 +272,7 @@ impl Collector {
                 if (collector_state & Self::INVALID) != 0 {
                     // The collector is obsolete.
                     let result = if prev_collector_ptr.is_null() {
-                        self_guard
-                            .root
+                        GLOBAL_ROOT
                             .chain_head
                             .fetch_update(Release, Relaxed, |p| {
                                 let tag = Tag::into_tag(p);
@@ -337,9 +309,8 @@ impl Collector {
 
             if update_global_epoch {
                 // It is a new era; a fence is required.
-                augmented_fence(SeqCst);
-                self_guard
-                    .root
+                maybe_std_fence(SeqCst);
+                GLOBAL_ROOT
                     .epoch
                     .store(Epoch::from_u8(known_epoch).next().into(), Relaxed);
                 return true;
@@ -350,14 +321,13 @@ impl Collector {
     }
 
     /// Allocates a new [`Collector`].
-    fn alloc(root: &Arc<CollectorRoot>) -> *mut Collector {
+    fn alloc() -> *mut Collector {
         let boxed = Box::new(Collector {
-            state: AugmentedAtomicU8::new(Self::INACTIVE),
+            state: AtomicU8::new(Self::INACTIVE),
             announcement: Epoch::default(),
             next_epoch_update: Self::CADENCE,
             has_garbage: false,
             num_readers: 0,
-            root: root.clone(),
             previous_instance_link: None,
             current_instance_link: None,
             next_instance_link: None,
@@ -365,7 +335,7 @@ impl Collector {
             link: None,
         });
         let ptr = Box::into_raw(boxed);
-        let mut current = root.chain_head.load(Relaxed);
+        let mut current = GLOBAL_ROOT.chain_head.load(Relaxed);
         loop {
             unsafe {
                 (*ptr)
@@ -376,7 +346,7 @@ impl Collector {
             // It keeps the tag intact.
             let tag = Tag::into_tag(current);
             let new = Tag::update_tag(ptr, tag).cast_mut();
-            if let Err(actual) = root
+            if let Err(actual) = GLOBAL_ROOT
                 .chain_head
                 .compare_exchange_weak(current, new, Release, Relaxed)
             {
@@ -407,45 +377,10 @@ impl Collectible for Collector {
     }
 }
 
-impl GlobalRoot {
-    fn alloc(&self) -> Arc<CollectorRoot> {
-        let mut global_root_ptr = self.0.load(Relaxed);
-        if global_root_ptr.is_null() {
-            let root = Arc::<CollectorRoot>::default();
-            let new_global_root_ptr = Arc::into_raw(root);
-            if let Err(actual) = self.0.compare_exchange(
-                global_root_ptr,
-                new_global_root_ptr.cast_mut(),
-                AcqRel,
-                Acquire,
-            ) {
-                drop(unsafe { Arc::from_raw(new_global_root_ptr) });
-                global_root_ptr = actual;
-            } else {
-                global_root_ptr = new_global_root_ptr.cast_mut();
-            }
-        }
-        let global_root = unsafe { Arc::from_raw(global_root_ptr) };
-        let global_root_clone_ptr = Arc::into_raw(global_root.clone());
-        debug_assert_eq!(global_root_clone_ptr, global_root_ptr);
-        global_root
-    }
-}
-
-impl Drop for GlobalRoot {
-    fn drop(&mut self) {
-        let global_root = self.0.load(Relaxed);
-        if !global_root.is_null() {
-            drop(unsafe { Arc::from_raw(global_root) });
-        }
-    }
-}
-
 impl CollectorAnchor {
     fn alloc(&self) -> *mut Collector {
         let _: &CollectorAnchor = self;
-        let root = GLOBAL_ROOT.alloc();
-        Collector::alloc(&root)
+        Collector::alloc()
     }
 }
 
@@ -459,9 +394,9 @@ impl Drop for CollectorAnchor {
 }
 
 /// Marks the head of a chain that there is a potentially unreachable `Collector` in the chain.
-fn mark_scan_enforced(chain_head: &AugmentedAtomicPtr<Collector>) {
+fn mark_scan_enforced() {
     // `Tag::Second` indicates that there is a garbage `Collector`.
-    let _result = chain_head.fetch_update(Release, Relaxed, |p| {
+    let _result = GLOBAL_ROOT.chain_head.fetch_update(Release, Relaxed, |p| {
         let new_tag = match Tag::into_tag(p) {
             Tag::None => Tag::Second,
             Tag::First => Tag::Both,
@@ -481,18 +416,17 @@ unsafe fn try_drop_local_collector() {
     if collector_ptr.is_null() {
         return;
     }
-    let mut chain_head_ptr = (*collector_ptr).root.chain_head.load(Relaxed);
+    let mut chain_head_ptr = GLOBAL_ROOT.chain_head.load(Relaxed);
     if Tag::into_tag(chain_head_ptr) == Tag::Second {
         // Another thread was joined before, and has yet to be cleaned up.
         let guard = super::Guard::new_for_drop(collector_ptr);
         (*collector_ptr).try_scan();
         drop(guard);
-        chain_head_ptr = (*collector_ptr).root.chain_head.load(Relaxed);
+        chain_head_ptr = GLOBAL_ROOT.chain_head.load(Relaxed);
     }
     if (*collector_ptr).next_link.load(Relaxed).is_null()
         && ptr::eq(collector_ptr, chain_head_ptr)
-        && (*collector_ptr)
-            .root
+        && GLOBAL_ROOT
             .chain_head
             .compare_exchange(chain_head_ptr, ptr::null_mut(), Relaxed, Relaxed)
             .is_ok()
@@ -507,17 +441,17 @@ unsafe fn try_drop_local_collector() {
         return;
     }
 
-    // Need to keep a strong reference to the root right after the collector is marked invalid.
-    let root = (*collector_ptr).root.clone();
     (*collector_ptr).state.fetch_or(Collector::INVALID, Release);
-    mark_scan_enforced(&root.chain_head);
+    mark_scan_enforced();
 }
 
-augmented_thread_local! {
-    #[allow(clippy::thread_local_initializer_can_be_made_const)]
-    static COLLECTOR_ANCHOR: CollectorAnchor = CollectorAnchor;
+thread_local! {
+    static COLLECTOR_ANCHOR: CollectorAnchor = const { CollectorAnchor };
     static LOCAL_COLLECTOR: AtomicPtr<Collector> = AtomicPtr::default();
 }
 
 /// The global and default [`CollectorRoot`].
-static GLOBAL_ROOT: GlobalRoot = GlobalRoot(AtomicPtr::new(ptr::null_mut()));
+static GLOBAL_ROOT: CollectorRoot = CollectorRoot {
+    epoch: AtomicU8::new(0),
+    chain_head: AtomicPtr::new(ptr::null_mut()),
+};

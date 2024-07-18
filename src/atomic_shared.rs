@@ -1,4 +1,4 @@
-use super::optional_public::AtomicPtr;
+use super::maybe_std::AtomicPtr;
 use super::ref_counted::RefCounted;
 use super::{Guard, Ptr, Shared, Tag};
 use std::mem::forget;
@@ -112,6 +112,7 @@ impl<T> AtomicShared<T> {
     /// assert!(atomic_shared.is_null(Relaxed));
     /// ```
     #[inline]
+    #[must_use]
     pub fn is_null(&self, order: Ordering) -> bool {
         Tag::unset_tag(self.instance_ptr.load(order)).is_null()
     }
@@ -130,6 +131,7 @@ impl<T> AtomicShared<T> {
     /// assert_eq!(*ptr.as_ref().unwrap(), 11);
     /// ```
     #[inline]
+    #[must_use]
     pub fn load<'g>(&self, order: Ordering, _guard: &'g Guard) -> Ptr<'g, T> {
         Ptr::from(self.instance_ptr.load(order))
     }
@@ -182,6 +184,7 @@ impl<T> AtomicShared<T> {
     /// assert_eq!(atomic_shared.tag(Relaxed), Tag::None);
     /// ```
     #[inline]
+    #[must_use]
     pub fn tag(&self, order: Ordering) -> Tag {
         Tag::into_tag(self.instance_ptr.load(order))
     }
@@ -407,6 +410,7 @@ impl<T> AtomicShared<T> {
     /// assert_eq!(*shared, 47);
     /// ```
     #[inline]
+    #[must_use]
     pub fn get_shared(&self, order: Ordering, _guard: &Guard) -> Option<Shared<T>> {
         let mut ptr = Tag::unset_tag(self.instance_ptr.load(order));
         while let Some(underlying_ptr) = NonNull::new(ptr.cast_mut()) {
@@ -437,6 +441,7 @@ impl<T> AtomicShared<T> {
     /// assert_eq!(*shared, 55);
     /// ```
     #[inline]
+    #[must_use]
     pub fn into_shared(self, order: Ordering) -> Option<Shared<T>> {
         let ptr = self.instance_ptr.swap(null_mut(), order);
         if let Some(underlying_ptr) = NonNull::new(Tag::unset_tag(ptr).cast_mut()) {

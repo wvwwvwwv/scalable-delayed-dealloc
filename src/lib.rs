@@ -53,8 +53,7 @@ mod ref_counted;
 /// ```
 #[inline]
 pub fn prepare() {
-    let guard = Guard::new();
-    drop(guard);
+    collector::Collector::current();
 }
 
 /// Suspends the garbage collector of the current thread.
@@ -88,22 +87,14 @@ pub fn suspend() -> bool {
     collector::Collector::pass_garbage()
 }
 
-mod optional_public {
-    #[cfg(feature = "loom")]
-    pub(crate) use loom::sync::atomic::AtomicPtr;
-    #[cfg(not(feature = "loom"))]
-    pub(crate) use std::sync::atomic::AtomicPtr;
+#[cfg(feature = "loom")]
+mod maybe_std {
+    pub(crate) use loom::sync::atomic::{fence, AtomicPtr};
 }
 
-mod optional_private {
-    #[cfg(all(feature = "loom", test))]
-    pub(crate) use loom::sync::atomic::{fence, AtomicPtr, AtomicU8};
-    #[cfg(all(feature = "loom", test))]
-    pub(crate) use loom::thread_local;
-    #[cfg(not(all(feature = "loom", test)))]
-    pub(crate) use std::sync::atomic::{fence, AtomicPtr, AtomicU8};
-    #[cfg(not(all(feature = "loom", test)))]
-    pub(crate) use std::thread_local;
+#[cfg(not(feature = "loom"))]
+mod maybe_std {
+    pub(crate) use std::sync::atomic::{fence, AtomicPtr};
 }
 
 #[cfg(test)]
