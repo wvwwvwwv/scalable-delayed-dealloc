@@ -52,27 +52,25 @@ impl<T> AtomicShared<T> {
     /// let shared: Shared<usize> = Shared::new(10);
     /// let atomic_shared: AtomicShared<usize> = AtomicShared::from(shared);
     /// ```
-    #[cfg(not(feature = "sdd_loom"))]
+    #[cfg(not(feature = "loom"))]
     #[inline]
     #[must_use]
     pub const fn from(shared: Shared<T>) -> Self {
         let ptr = shared.get_underlying_ptr();
         forget(shared);
-        Self {
-            instance_ptr: AtomicPtr::new(ptr),
-        }
+        let instance_ptr: std::sync::atomic::AtomicPtr<RefCounted<T>> = AtomicPtr::new(ptr);
+        Self { instance_ptr }
     }
 
     /// Creates a new [`AtomicShared`] from a [`Shared`] of `T`.
-    #[cfg(feature = "sdd_loom")]
+    #[cfg(feature = "loom")]
     #[inline]
     #[must_use]
     pub fn from(shared: Shared<T>) -> Self {
         let ptr = shared.get_underlying_ptr();
         forget(shared);
-        Self {
-            instance_ptr: AtomicPtr::new(ptr),
-        }
+        let instance_ptr: loom::sync::atomic::AtomicPtr<RefCounted<T>> = AtomicPtr::new(ptr);
+        Self { instance_ptr }
     }
 
     /// Creates a null [`AtomicShared`].
@@ -84,23 +82,21 @@ impl<T> AtomicShared<T> {
     ///
     /// let atomic_shared: AtomicShared<usize> = AtomicShared::null();
     /// ```
-    #[cfg(not(feature = "sdd_loom"))]
+    #[cfg(not(feature = "loom"))]
     #[inline]
     #[must_use]
     pub const fn null() -> Self {
-        Self {
-            instance_ptr: AtomicPtr::new(null_mut()),
-        }
+        let instance_ptr: std::sync::atomic::AtomicPtr<RefCounted<T>> = AtomicPtr::new(null_mut());
+        Self { instance_ptr }
     }
 
     /// Creates a null [`AtomicShared`].
-    #[cfg(feature = "sdd_loom")]
+    #[cfg(feature = "loom")]
     #[inline]
     #[must_use]
     pub fn null() -> Self {
-        Self {
-            instance_ptr: AtomicPtr::new(null_mut()),
-        }
+        let instance_ptr: loom::sync::atomic::AtomicPtr<RefCounted<T>> = AtomicPtr::new(null_mut());
+        Self { instance_ptr }
     }
 
     /// Returns `true` if the [`AtomicShared`] is null.

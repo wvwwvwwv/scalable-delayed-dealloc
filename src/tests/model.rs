@@ -1,4 +1,5 @@
-#[cfg(all(loom_test, test))]
+#[cfg(feature = "loom")]
+#[cfg(test)]
 mod test_model {
     use crate::collector::{Collector, CollectorRoot};
     use crate::{suspend, Guard, Owned};

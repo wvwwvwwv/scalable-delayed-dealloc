@@ -52,27 +52,25 @@ impl<T> AtomicOwned<T> {
     /// let owned: Owned<usize> = Owned::new(10);
     /// let atomic_owned: AtomicOwned<usize> = AtomicOwned::from(owned);
     /// ```
-    #[cfg(not(feature = "sdd_loom"))]
+    #[cfg(not(feature = "loom"))]
     #[inline]
     #[must_use]
     pub const fn from(owned: Owned<T>) -> Self {
         let ptr = owned.get_underlying_ptr();
         forget(owned);
-        Self {
-            instance_ptr: AtomicPtr::new(ptr),
-        }
+        let instance_ptr: std::sync::atomic::AtomicPtr<RefCounted<T>> = AtomicPtr::new(ptr);
+        Self { instance_ptr }
     }
 
     /// Creates a new [`AtomicOwned`] from an [`Owned`] of `T`.
-    #[cfg(feature = "sdd_loom")]
+    #[cfg(feature = "loom")]
     #[inline]
     #[must_use]
     pub fn from(owned: Owned<T>) -> Self {
         let ptr = owned.get_underlying_ptr();
         forget(owned);
-        Self {
-            instance_ptr: AtomicPtr::new(ptr),
-        }
+        let instance_ptr: loom::sync::atomic::AtomicPtr<RefCounted<T>> = AtomicPtr::new(ptr);
+        Self { instance_ptr }
     }
 
     /// Creates a null [`AtomicOwned`].
@@ -84,23 +82,21 @@ impl<T> AtomicOwned<T> {
     ///
     /// let atomic_owned: AtomicOwned<usize> = AtomicOwned::null();
     /// ```
-    #[cfg(not(feature = "sdd_loom"))]
+    #[cfg(not(feature = "loom"))]
     #[inline]
     #[must_use]
     pub const fn null() -> Self {
-        Self {
-            instance_ptr: AtomicPtr::new(null_mut()),
-        }
+        let instance_ptr: std::sync::atomic::AtomicPtr<RefCounted<T>> = AtomicPtr::new(null_mut());
+        Self { instance_ptr }
     }
 
     /// Creates a null [`AtomicOwned`].
-    #[cfg(feature = "sdd_loom")]
+    #[cfg(feature = "loom")]
     #[inline]
     #[must_use]
     pub fn null() -> Self {
-        Self {
-            instance_ptr: AtomicPtr::new(null_mut()),
-        }
+        let instance_ptr: loom::sync::atomic::AtomicPtr<RefCounted<T>> = AtomicPtr::new(null_mut());
+        Self { instance_ptr }
     }
 
     /// Returns `true` if the [`AtomicOwned`] is null.

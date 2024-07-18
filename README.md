@@ -11,7 +11,7 @@ Its delayed deallocation algorithm is based on a variant of epoch-based reclamat
 ## Features
 
 * Lock-free epoch-based reclamation.
-* [`Loom`](https://crates.io/crates/loom) support: `features = ["sdd_loom"]`.
+* [`Loom`](https://crates.io/crates/loom) support: `features = ["loom"]`.
 
 ## Memory Overhead
 

@@ -185,7 +185,7 @@ impl Collector {
     /// # Panics
     ///
     /// Panics if a [`Collector`] is previously set.
-    #[cfg(loom_test)]
+    #[cfg(all(feature = "loom", test))]
     pub(super) unsafe fn set_root(root: &Arc<CollectorRoot>) {
         LOCAL_COLLECTOR.with(|local_collector| {
             assert!(local_collector.load(Relaxed).is_null());

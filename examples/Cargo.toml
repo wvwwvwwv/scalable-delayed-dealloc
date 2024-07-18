@@ -5,4 +5,5 @@ authors = ["wvwwvwwv <wvwwvwwv@me.com>"]
 edition = "2021"
 
 [dependencies]
-sdd = { path = ".."}
+sdd = { path = ".." }
+

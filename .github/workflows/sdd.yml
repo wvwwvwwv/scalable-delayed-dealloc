@@ -48,7 +48,7 @@ jobs:
       - name: Doc
         run: cargo doc --document-private-items;
       - name: Loom
-        run: RUSTFLAGS="--cfg loom_test" cargo test --features sdd_loom --release --lib
+        run: cargo test --features loom --release --lib
       - name: Miri
         run: cargo +nightly miri test --lib --bins --tests
   benchmark:
