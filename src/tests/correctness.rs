@@ -211,8 +211,8 @@ mod test_correctness {
         drop(guard);
 
         while !DESTROYED.load(Relaxed) {
+            Guard::new().accelerate();
             thread::yield_now();
-            drop(Guard::new());
         }
     }
 
@@ -231,8 +231,8 @@ mod test_correctness {
         assert!(thread.join().is_ok());
 
         while !DESTROYED.load(Relaxed) {
+            Guard::new().accelerate();
             thread::yield_now();
-            drop(Guard::new());
         }
     }
 
@@ -257,8 +257,8 @@ mod test_correctness {
         drop(guard);
 
         while !DESTROYED.load(Relaxed) {
+            Guard::new().accelerate();
             thread::yield_now();
-            drop(Guard::new());
         }
     }
 
@@ -281,8 +281,8 @@ mod test_correctness {
         drop(guard);
 
         while !DESTROYED.load(Relaxed) {
+            Guard::new().accelerate();
             thread::yield_now();
-            drop(Guard::new());
         }
     }
 
@@ -309,8 +309,8 @@ mod test_correctness {
             });
 
             while DEALLOCATED.load(Relaxed) != num_threads {
+                Guard::new().accelerate();
                 thread::yield_now();
-                drop(Guard::new());
             }
             DEALLOCATED.store(0, Relaxed);
         }
@@ -359,22 +359,22 @@ mod test_correctness {
             });
 
             while DEALLOCATED.load(Relaxed) != num_threads * 2 {
+                Guard::new().accelerate();
                 thread::yield_now();
-                drop(Guard::new());
             }
             DEALLOCATED.store(0, Relaxed);
         }
     }
 
     #[cfg_attr(miri, ignore)]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 16)]
-    async fn atomic_shared_parallel() {
+    #[test]
+    fn atomic_shared_parallel() {
         let atomic_shared: Shared<AtomicShared<String>> =
             Shared::new(AtomicShared::new(String::from("How are you?")));
-        let mut task_handles = Vec::new();
+        let mut thread_handles = Vec::new();
         for _ in 0..16 {
             let atomic_shared = atomic_shared.clone();
-            task_handles.push(tokio::task::spawn(async move {
+            thread_handles.push(thread::spawn(move || {
                 for _ in 0..64 {
                     let guard = Guard::new();
                     let mut ptr = (*atomic_shared).load(Acquire, &guard);
@@ -430,20 +430,20 @@ mod test_correctness {
                 }
             }));
         }
-        for r in futures::future::join_all(task_handles).await {
-            assert!(r.is_ok());
+        for t in thread_handles {
+            assert!(t.join().is_ok());
         }
     }
 
     #[cfg_attr(miri, ignore)]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 16)]
-    async fn atomic_shared_clone() {
+    #[test]
+    fn atomic_shared_clone() {
         let atomic_shared: Shared<AtomicShared<String>> =
             Shared::new(AtomicShared::new(String::from("How are you?")));
-        let mut task_handles = Vec::new();
+        let mut thread_handles = Vec::new();
         for t in 0..4 {
             let atomic_shared = atomic_shared.clone();
-            task_handles.push(tokio::task::spawn(async move {
+            thread_handles.push(thread::spawn(move || {
                 for i in 0..256 {
                     if t == 0 {
                         let tag = if i % 3 == 0 {
@@ -478,8 +478,8 @@ mod test_correctness {
                 }
             }));
         }
-        for r in futures::future::join_all(task_handles).await {
-            assert!(r.is_ok());
+        for t in thread_handles {
+            assert!(t.join().is_ok());
         }
     }
 }
