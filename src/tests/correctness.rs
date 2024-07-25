@@ -147,7 +147,6 @@ mod test_correctness {
         assert!(DESTROYED.load(Relaxed));
     }
 
-    #[cfg_attr(miri, ignore)]
     #[test]
     fn shared_nested() {
         static DESTROYED: AtomicBool = AtomicBool::new(false);

@@ -32,7 +32,7 @@ impl Guard {
     #[must_use]
     pub fn new() -> Self {
         let collector_ptr = Collector::current();
-        unsafe { (*collector_ptr).new_guard(true) };
+        Collector::new_guard(collector_ptr, true);
         Self { collector_ptr }
     }
 
@@ -127,18 +127,21 @@ impl Guard {
     /// # Examples
     ///
     /// ```
-    /// use sdd::{Guard, Collectible};
+    /// use sdd::{Collectible, Guard, Link};
     /// use std::ptr::NonNull;
     ///
-    /// struct C(usize, Option<NonNull<dyn Collectible>>);
+    /// struct C(usize, Link);
     ///
     /// impl Collectible for C {
-    ///     fn next_ptr_mut(&mut self) -> &mut Option<NonNull<dyn Collectible>> {
-    ///         &mut self.1
+    ///     fn next_ptr(&self) -> Option<NonNull<dyn Collectible>> {
+    ///         self.1.next_ptr()
+    ///     }
+    ///     fn set_next_ptr(&self, next_ptr: Option<NonNull<dyn Collectible>>) {
+    ///         self.1.set_next_ptr(next_ptr);
     ///     }
     /// }
     ///
-    /// let boxed: Box<C> = Box::new(C(7, None));
+    /// let boxed: Box<C> = Box::new(C(7, Link::default()));
     ///
     /// let static_ref: &'static C = unsafe { std::mem::transmute(&*boxed) };
     ///
@@ -174,18 +177,14 @@ impl Guard {
     /// Creates a new [`Guard`] for dropping an instance in the supplied [`Collector`].
     #[inline]
     pub(super) fn new_for_drop(collector_ptr: *mut Collector) -> Self {
-        unsafe {
-            (*collector_ptr).new_guard(false);
-        }
+        Collector::new_guard(collector_ptr, false);
         Self { collector_ptr }
     }
 
     /// Reclaims the supplied instance.
     #[inline]
     pub(super) fn collect(&self, collectible: *mut dyn Collectible) {
-        unsafe {
-            (*self.collector_ptr).reclaim(collectible);
-        }
+        Collector::collect(self.collector_ptr, collectible);
     }
 }
 
@@ -199,9 +198,7 @@ impl Default for Guard {
 impl Drop for Guard {
     #[inline]
     fn drop(&mut self) {
-        unsafe {
-            (*self.collector_ptr).end_guard();
-        }
+        Collector::end_guard(self.collector_ptr);
     }
 }
 

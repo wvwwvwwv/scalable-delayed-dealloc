@@ -1,5 +1,9 @@
 # Changelog
 
+2.0.0
+
+* `{Owned, Shared}::release` no longer receives a `Guard`.
+
 1.7.0
 
 * Add `loom` support.

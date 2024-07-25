@@ -1,5 +1,4 @@
-use super::Collectible;
-use std::mem::ManuallyDrop;
+use super::{Collectible, Link};
 use std::ops::Deref;
 use std::ptr::NonNull;
 use std::sync::atomic::AtomicUsize;
@@ -9,7 +8,7 @@ use std::sync::atomic::Ordering::{self, Relaxed};
 /// [`Collectible`] or the reference counter.
 pub(super) struct RefCounted<T> {
     instance: T,
-    next_or_refcnt: LinkOrRefCnt,
+    next_or_refcnt: Link,
 }
 
 impl<T> RefCounted<T> {
@@ -18,7 +17,7 @@ impl<T> RefCounted<T> {
     pub(super) const fn new_shared(t: T) -> Self {
         Self {
             instance: t,
-            next_or_refcnt: LinkOrRefCnt::new_shared(),
+            next_or_refcnt: Link::new_shared(),
         }
     }
 
@@ -29,7 +28,7 @@ impl<T> RefCounted<T> {
     pub(super) const fn new_unique(t: T) -> Self {
         Self {
             instance: t,
-            next_or_refcnt: LinkOrRefCnt::new_unique(),
+            next_or_refcnt: Link::new_unique(),
         }
     }
 
@@ -117,7 +116,7 @@ impl<T> RefCounted<T> {
     /// Returns a reference to its reference count.
     #[inline]
     pub(super) fn ref_cnt(&self) -> &AtomicUsize {
-        unsafe { &self.next_or_refcnt.refcnt.0 }
+        self.next_or_refcnt.ref_cnt()
     }
 }
 
@@ -132,29 +131,12 @@ impl<T> Deref for RefCounted<T> {
 
 impl<T> Collectible for RefCounted<T> {
     #[inline]
-    fn next_ptr_mut(&mut self) -> &mut Option<NonNull<dyn Collectible>> {
-        unsafe { &mut self.next_or_refcnt.next }
-    }
-}
-
-/// [`LinkOrRefCnt`] is a union of a dynamic pointer to [`Collectible`] and a reference count.
-pub(super) union LinkOrRefCnt {
-    next: Option<NonNull<dyn Collectible>>,
-    refcnt: ManuallyDrop<(AtomicUsize, usize)>,
-}
-
-impl LinkOrRefCnt {
-    #[inline]
-    const fn new_shared() -> Self {
-        LinkOrRefCnt {
-            refcnt: ManuallyDrop::new((AtomicUsize::new(1), 0)),
-        }
+    fn next_ptr(&self) -> Option<NonNull<dyn Collectible>> {
+        self.next_or_refcnt.next_ptr()
     }
 
     #[inline]
-    const fn new_unique() -> Self {
-        LinkOrRefCnt {
-            refcnt: ManuallyDrop::new((AtomicUsize::new(0), 0)),
-        }
+    fn set_next_ptr(&self, next_ptr: Option<NonNull<dyn Collectible>>) {
+        self.next_or_refcnt.set_next_ptr(next_ptr);
     }
 }

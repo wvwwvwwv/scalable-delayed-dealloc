@@ -149,15 +149,14 @@ impl<T> Owned<T> {
     /// # Examples
     ///
     /// ```
-    /// use sdd::{Guard, Owned};
+    /// use sdd::Owned;
     ///
     /// let owned: Owned<usize> = Owned::new(47);
-    /// let guard = Guard::new();
-    /// owned.release(&guard);
+    /// owned.release();
     /// ```
     #[inline]
-    pub fn release(mut self, guard: &Guard) {
-        self.pass_underlying_to_collector(guard);
+    pub fn release(mut self) {
+        self.pass_underlying_to_collector();
         forget(self);
     }
 
@@ -224,10 +223,11 @@ impl<T> Owned<T> {
     }
 
     #[inline]
-    fn pass_underlying_to_collector(&mut self, guard: &Guard) {
-        let dyn_mut: &mut dyn Collectible = unsafe { self.instance_ptr.as_mut() };
-        let dyn_mut_ptr: *mut dyn Collectible = unsafe { std::mem::transmute(dyn_mut) };
-        guard.collect(dyn_mut_ptr);
+    fn pass_underlying_to_collector(&mut self) {
+        let dyn_mut_ptr: *mut dyn Collectible = self.instance_ptr.as_ptr();
+        #[allow(clippy::transmute_ptr_to_ptr)]
+        let dyn_mut_ptr: *mut dyn Collectible = unsafe { std::mem::transmute(dyn_mut_ptr) };
+        Collector::collect(Collector::current(), dyn_mut_ptr);
     }
 }
 
@@ -250,8 +250,7 @@ impl<T> Deref for Owned<T> {
 impl<T> Drop for Owned<T> {
     #[inline]
     fn drop(&mut self) {
-        let guard = Guard::new_for_drop(Collector::current());
-        self.pass_underlying_to_collector(&guard);
+        self.pass_underlying_to_collector();
     }
 }
 

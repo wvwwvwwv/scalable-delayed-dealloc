@@ -11,7 +11,7 @@ mod guard;
 pub use guard::Guard;
 
 mod collectible;
-pub use collectible::Collectible;
+pub use collectible::{Collectible, Link};
 
 mod epoch;
 pub use epoch::Epoch;
@@ -64,22 +64,16 @@ pub fn prepare() {
 /// # Examples
 ///
 /// ```
-/// use sdd::{suspend, Guard, Shared};
+/// use sdd::{suspend, Guard};
 ///
 /// assert!(suspend());
 ///
 /// {
-///     let shared: Shared<usize> = Shared::new(47);
 ///     let guard = Guard::new();
-///     shared.release(&guard);
 ///     assert!(!suspend());
 /// }
 ///
 /// assert!(suspend());
-///
-/// let new_shared: Shared<usize> = Shared::new(17);
-/// let guard = Guard::new();
-/// new_shared.release(&guard);
 /// ```
 #[inline]
 #[must_use]

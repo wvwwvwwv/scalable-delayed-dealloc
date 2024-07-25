@@ -160,19 +160,18 @@ impl<T> Shared<T> {
     /// # Examples
     ///
     /// ```
-    /// use sdd::{Guard, Shared};
+    /// use sdd::Shared;
     ///
     /// let shared: Shared<usize> = Shared::new(47);
     /// let shared_clone = shared.clone();
-    /// let guard = Guard::new();
-    /// assert!(!shared.release(&guard));
-    /// assert!(shared_clone.release(&guard));
+    /// assert!(!shared.release());
+    /// assert!(shared_clone.release());
     /// ```
     #[inline]
     #[must_use]
-    pub fn release(mut self, guard: &Guard) -> bool {
+    pub fn release(mut self) -> bool {
         let released = if self.underlying().drop_ref() {
-            self.pass_underlying_to_collector(guard);
+            self.pass_underlying_to_collector();
             true
         } else {
             false
@@ -254,10 +253,11 @@ impl<T> Shared<T> {
     }
 
     #[inline]
-    fn pass_underlying_to_collector(&mut self, guard: &Guard) {
-        let dyn_mut: &mut dyn Collectible = unsafe { self.instance_ptr.as_mut() };
-        let dyn_mut_ptr: *mut dyn Collectible = unsafe { std::mem::transmute(dyn_mut) };
-        guard.collect(dyn_mut_ptr);
+    fn pass_underlying_to_collector(&mut self) {
+        let dyn_mut_ptr: *mut dyn Collectible = self.instance_ptr.as_ptr();
+        #[allow(clippy::transmute_ptr_to_ptr)]
+        let dyn_mut_ptr: *mut dyn Collectible = unsafe { std::mem::transmute(dyn_mut_ptr) };
+        Collector::collect(Collector::current(), dyn_mut_ptr);
     }
 }
 
@@ -292,8 +292,7 @@ impl<T> Drop for Shared<T> {
     #[inline]
     fn drop(&mut self) {
         if self.underlying().drop_ref() {
-            let guard = Guard::new_for_drop(Collector::current());
-            self.pass_underlying_to_collector(&guard);
+            self.pass_underlying_to_collector();
         }
     }
 }
