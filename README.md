@@ -13,10 +13,6 @@ Its delayed deallocation algorithm is based on a variant of epoch-based reclamat
 * Lock-free epoch-based reclamation.
 * [`Loom`](https://crates.io/crates/loom) support: `features = ["loom"]`.
 
-## Memory Overhead
-
-Retired instances are stored in intrusive queues in thread-local storage, and therefore additional space for `Option<NonNull<dyn Collectible>>` is allocated per instance.
-
 ## Examples
 
 This crate can be used _without an `unsafe` block_.
@@ -83,6 +79,10 @@ drop(guard);
 // others to reclaim the memory.
 suspend();
 ```
+
+## Memory Overhead
+
+Retired instances are stored in intrusive queues in thread-local storage, and therefore additional space for `Option<NonNull<dyn Collectible>>` is allocated per instance.
 
 ## Performance
 

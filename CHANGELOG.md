@@ -3,6 +3,7 @@
 2.0.0
 
 * `{Owned, Shared}::release` no longer receives a `Guard`.
+* `Link` is now public.
 
 1.7.0
 
