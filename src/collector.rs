@@ -480,9 +480,6 @@ unsafe fn try_drop_local_collector() {
             .is_ok()
     {
         // If it is the head, and the only `Collector` in the chain, drop it here.
-        let guard = super::Guard::new_for_drop(collector_ptr);
-        Collector::clear_for_drop(collector_ptr);
-        drop(guard);
         drop(Box::from_raw(collector_ptr));
         return;
     }
