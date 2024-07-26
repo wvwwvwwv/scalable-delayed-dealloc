@@ -315,13 +315,12 @@ mod test_correctness {
         }
     }
 
-    #[cfg_attr(miri, ignore)]
     #[test]
     fn reclaim_collector_nested() {
         static DEALLOCATED: AtomicUsize = AtomicUsize::new(0);
 
         let num_threads = 16;
-        let num_iter = 32;
+        let num_iter = 16;
 
         for _ in 0..num_iter {
             assert!(suspend());
@@ -365,7 +364,6 @@ mod test_correctness {
         }
     }
 
-    #[cfg_attr(miri, ignore)]
     #[test]
     fn atomic_shared_parallel() {
         let atomic_shared: Shared<AtomicShared<String>> =
@@ -374,7 +372,7 @@ mod test_correctness {
         for _ in 0..16 {
             let atomic_shared = atomic_shared.clone();
             thread_handles.push(thread::spawn(move || {
-                for _ in 0..64 {
+                for _ in 0..16 {
                     let guard = Guard::new();
                     let mut ptr = (*atomic_shared).load(Acquire, &guard);
                     assert!(ptr.tag() == Tag::None || ptr.tag() == Tag::Second);
@@ -434,7 +432,6 @@ mod test_correctness {
         }
     }
 
-    #[cfg_attr(miri, ignore)]
     #[test]
     fn atomic_shared_clone() {
         let atomic_shared: Shared<AtomicShared<String>> =
