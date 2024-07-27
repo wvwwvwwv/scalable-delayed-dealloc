@@ -1,6 +1,5 @@
-use super::collector::Collector;
 use super::ref_counted::RefCounted;
-use super::{Collectible, Guard, Ptr};
+use super::{Guard, Ptr};
 use std::mem::forget;
 use std::ops::Deref;
 use std::panic::UnwindSafe;
@@ -64,7 +63,7 @@ impl<T> Shared<T> {
     pub unsafe fn new_unchecked(t: T) -> Self {
         let boxed = Box::new(RefCounted::new_shared(t));
         Self {
-            instance_ptr: unsafe { NonNull::new_unchecked(Box::into_raw(boxed)) },
+            instance_ptr: NonNull::new_unchecked(Box::into_raw(boxed)),
         }
     }
 
@@ -169,9 +168,9 @@ impl<T> Shared<T> {
     /// ```
     #[inline]
     #[must_use]
-    pub fn release(mut self) -> bool {
+    pub fn release(self) -> bool {
         let released = if self.underlying().drop_ref() {
-            self.pass_underlying_to_collector();
+            RefCounted::pass_to_collector(self.instance_ptr.as_ptr());
             true
         } else {
             false
@@ -251,14 +250,6 @@ impl<T> Shared<T> {
     fn underlying(&self) -> &RefCounted<T> {
         unsafe { self.instance_ptr.as_ref() }
     }
-
-    #[inline]
-    fn pass_underlying_to_collector(&mut self) {
-        let dyn_mut_ptr: *mut dyn Collectible = self.instance_ptr.as_ptr();
-        #[allow(clippy::transmute_ptr_to_ptr)]
-        let dyn_mut_ptr: *mut dyn Collectible = unsafe { std::mem::transmute(dyn_mut_ptr) };
-        Collector::collect(Collector::current(), dyn_mut_ptr);
-    }
 }
 
 impl<T> AsRef<T> for Shared<T> {
@@ -292,7 +283,7 @@ impl<T> Drop for Shared<T> {
     #[inline]
     fn drop(&mut self) {
         if self.underlying().drop_ref() {
-            self.pass_underlying_to_collector();
+            RefCounted::pass_to_collector(self.instance_ptr.as_ptr());
         }
     }
 }

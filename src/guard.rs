@@ -32,7 +32,9 @@ impl Guard {
     #[must_use]
     pub fn new() -> Self {
         let collector_ptr = Collector::current();
-        Collector::new_guard(collector_ptr, true);
+        unsafe {
+            Collector::new_guard(collector_ptr, true);
+        }
         Self { collector_ptr }
     }
 
@@ -177,14 +179,18 @@ impl Guard {
     /// Creates a new [`Guard`] for dropping an instance in the supplied [`Collector`].
     #[inline]
     pub(super) fn new_for_drop(collector_ptr: *mut Collector) -> Self {
-        Collector::new_guard(collector_ptr, false);
+        unsafe {
+            Collector::new_guard(collector_ptr, false);
+        }
         Self { collector_ptr }
     }
 
     /// Reclaims the supplied instance.
     #[inline]
     pub(super) fn collect(&self, collectible: *mut dyn Collectible) {
-        Collector::collect(self.collector_ptr, collectible);
+        unsafe {
+            Collector::collect(self.collector_ptr, collectible);
+        }
     }
 }
 
@@ -198,7 +204,9 @@ impl Default for Guard {
 impl Drop for Guard {
     #[inline]
     fn drop(&mut self) {
-        Collector::end_guard(self.collector_ptr);
+        unsafe {
+            Collector::end_guard(self.collector_ptr);
+        }
     }
 }
 

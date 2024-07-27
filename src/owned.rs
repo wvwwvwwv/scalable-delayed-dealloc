@@ -1,6 +1,5 @@
 use super::ref_counted::RefCounted;
-use super::{Collectible, Guard, Ptr};
-use crate::collector::Collector;
+use super::{Guard, Ptr};
 use std::mem::forget;
 use std::ops::Deref;
 use std::panic::UnwindSafe;
@@ -59,7 +58,7 @@ impl<T> Owned<T> {
     pub unsafe fn new_unchecked(t: T) -> Self {
         let owned = Box::new(RefCounted::new_unique(t));
         Self {
-            instance_ptr: unsafe { NonNull::new_unchecked(Box::into_raw(owned)) },
+            instance_ptr: NonNull::new_unchecked(Box::into_raw(owned)),
         }
     }
 
@@ -144,22 +143,6 @@ impl<T> Owned<T> {
         addr_of!(**self.underlying())
     }
 
-    /// Releases the ownership by passing `self` to the given [`Guard`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use sdd::Owned;
-    ///
-    /// let owned: Owned<usize> = Owned::new(47);
-    /// owned.release();
-    /// ```
-    #[inline]
-    pub fn release(mut self) {
-        self.pass_underlying_to_collector();
-        forget(self);
-    }
-
     /// Drops the instance immediately.
     ///
     /// # Safety
@@ -221,14 +204,6 @@ impl<T> Owned<T> {
     fn underlying(&self) -> &RefCounted<T> {
         unsafe { self.instance_ptr.as_ref() }
     }
-
-    #[inline]
-    fn pass_underlying_to_collector(&mut self) {
-        let dyn_mut_ptr: *mut dyn Collectible = self.instance_ptr.as_ptr();
-        #[allow(clippy::transmute_ptr_to_ptr)]
-        let dyn_mut_ptr: *mut dyn Collectible = unsafe { std::mem::transmute(dyn_mut_ptr) };
-        Collector::collect(Collector::current(), dyn_mut_ptr);
-    }
 }
 
 impl<T> AsRef<T> for Owned<T> {
@@ -250,7 +225,7 @@ impl<T> Deref for Owned<T> {
 impl<T> Drop for Owned<T> {
     #[inline]
     fn drop(&mut self) {
-        self.pass_underlying_to_collector();
+        RefCounted::pass_to_collector(self.instance_ptr.as_ptr());
     }
 }
 

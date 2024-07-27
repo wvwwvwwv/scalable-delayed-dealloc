@@ -1,5 +1,10 @@
 # Changelog
 
+2.1.0
+
+* Fully `Miri`-compliant.
+* Remove `Owned::release`.
+
 2.0.0
 
 * `{Owned, Shared}::release` no longer receives a `Guard`.

@@ -1,3 +1,4 @@
+use super::collector::Collector;
 use super::{Collectible, Link};
 use std::ops::Deref;
 use std::ptr::NonNull;
@@ -117,6 +118,17 @@ impl<T> RefCounted<T> {
     #[inline]
     pub(super) fn ref_cnt(&self) -> &AtomicUsize {
         self.next_or_refcnt.ref_cnt()
+    }
+
+    /// Passes a pointer to [`RefCounted`] to the garbage collector.
+    #[inline]
+    pub(super) fn pass_to_collector(ptr: *mut Self) {
+        let dyn_mut_ptr: *mut dyn Collectible = ptr;
+        #[allow(clippy::transmute_ptr_to_ptr)]
+        let dyn_mut_ptr: *mut dyn Collectible = unsafe { std::mem::transmute(dyn_mut_ptr) };
+        unsafe {
+            Collector::collect(Collector::current(), dyn_mut_ptr);
+        }
     }
 }
 
