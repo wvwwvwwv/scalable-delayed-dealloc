@@ -1,7 +1,7 @@
 use super::collector::Collector;
 use super::{Collectible, Link};
 use std::ops::Deref;
-use std::ptr::NonNull;
+use std::ptr::{self, addr_of, NonNull};
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::{self, Relaxed};
 
@@ -112,6 +112,16 @@ impl<T> RefCounted<T> {
             }
         }
         current == 1
+    }
+
+    /// Returns a pointer to the instance.
+    #[inline]
+    pub(super) fn inst_ptr(self_ptr: *const Self) -> *const T {
+        if self_ptr.is_null() {
+            ptr::null()
+        } else {
+            unsafe { addr_of!((*self_ptr).instance) }
+        }
     }
 
     /// Returns a reference to its reference count.

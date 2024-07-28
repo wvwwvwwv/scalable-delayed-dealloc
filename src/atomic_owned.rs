@@ -3,7 +3,7 @@ use super::ref_counted::RefCounted;
 use super::{Guard, Owned, Ptr, Tag};
 use std::mem::forget;
 use std::panic::UnwindSafe;
-use std::ptr::{null_mut, NonNull};
+use std::ptr::{null, null_mut, NonNull};
 use std::sync::atomic::Ordering::{self, Relaxed};
 
 /// [`AtomicOwned`] owns the underlying instance, and allows users to perform atomic operations
@@ -56,9 +56,10 @@ impl<T> AtomicOwned<T> {
     #[inline]
     #[must_use]
     pub const fn from(owned: Owned<T>) -> Self {
-        let ptr = owned.get_underlying_ptr();
+        let ptr = owned.underlying_ptr();
         forget(owned);
-        let instance_ptr: std::sync::atomic::AtomicPtr<RefCounted<T>> = AtomicPtr::new(ptr);
+        let instance_ptr: std::sync::atomic::AtomicPtr<RefCounted<T>> =
+            AtomicPtr::new(ptr.cast_mut());
         Self { instance_ptr }
     }
 
@@ -67,9 +68,10 @@ impl<T> AtomicOwned<T> {
     #[inline]
     #[must_use]
     pub fn from(owned: Owned<T>) -> Self {
-        let ptr = owned.get_underlying_ptr();
+        let ptr = owned.underlying_ptr();
         forget(owned);
-        let instance_ptr: loom::sync::atomic::AtomicPtr<RefCounted<T>> = AtomicPtr::new(ptr);
+        let instance_ptr: loom::sync::atomic::AtomicPtr<RefCounted<T>> =
+            AtomicPtr::new(ptr.cast_mut());
         Self { instance_ptr }
     }
 
@@ -159,9 +161,7 @@ impl<T> AtomicOwned<T> {
     #[inline]
     pub fn swap(&self, new: (Option<Owned<T>>, Tag), order: Ordering) -> (Option<Owned<T>>, Tag) {
         let desired = Tag::update_tag(
-            new.0
-                .as_ref()
-                .map_or_else(null_mut, Owned::get_underlying_ptr),
+            new.0.as_ref().map_or_else(null, Owned::underlying_ptr),
             new.1,
         )
         .cast_mut();
@@ -266,9 +266,7 @@ impl<T> AtomicOwned<T> {
         _guard: &'g Guard,
     ) -> Result<OwnedPtrPair<'g, T>, OwnedPtrPair<'g, T>> {
         let desired = Tag::update_tag(
-            new.0
-                .as_ref()
-                .map_or_else(null_mut, Owned::get_underlying_ptr),
+            new.0.as_ref().map_or_else(null, Owned::underlying_ptr),
             new.1,
         )
         .cast_mut();
@@ -331,9 +329,7 @@ impl<T> AtomicOwned<T> {
         _guard: &'g Guard,
     ) -> Result<OwnedPtrPair<'g, T>, OwnedPtrPair<'g, T>> {
         let desired = Tag::update_tag(
-            new.0
-                .as_ref()
-                .map_or_else(null_mut, Owned::get_underlying_ptr),
+            new.0.as_ref().map_or_else(null, Owned::underlying_ptr),
             new.1,
         )
         .cast_mut();

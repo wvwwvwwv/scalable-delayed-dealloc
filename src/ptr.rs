@@ -2,9 +2,8 @@ use super::ref_counted::RefCounted;
 use super::{Shared, Tag};
 use std::marker::PhantomData;
 use std::panic::UnwindSafe;
-use std::ptr::addr_of;
 use std::sync::atomic::Ordering::Relaxed;
-use std::{ops::Deref, ptr, ptr::NonNull};
+use std::{ptr, ptr::NonNull};
 
 /// [`Ptr`] points to an instance.
 #[derive(Debug)]
@@ -64,7 +63,11 @@ impl<'g, T> Ptr<'g, T> {
     #[inline]
     #[must_use]
     pub fn as_ref(&self) -> Option<&'g T> {
-        unsafe { Tag::unset_tag(self.instance_ptr).as_ref().map(Deref::deref) }
+        let ptr = Tag::unset_tag(self.instance_ptr);
+        if ptr.is_null() {
+            return None;
+        }
+        unsafe { Some(&*ptr) }
     }
 
     /// Provides a raw pointer to the instance.
@@ -85,11 +88,7 @@ impl<'g, T> Ptr<'g, T> {
     #[inline]
     #[must_use]
     pub fn as_ptr(&self) -> *const T {
-        unsafe {
-            Tag::unset_tag(self.instance_ptr)
-                .as_ref()
-                .map_or_else(ptr::null, |u| addr_of!(**u))
-        }
+        RefCounted::inst_ptr(Tag::unset_tag(self.instance_ptr))
     }
 
     /// Returns its [`Tag`].
@@ -209,7 +208,7 @@ impl<'g, T> Ptr<'g, T> {
     pub fn get_shared(self) -> Option<Shared<T>> {
         unsafe {
             if let Some(ptr) = NonNull::new(Tag::unset_tag(self.instance_ptr).cast_mut()) {
-                if ptr.as_ref().try_add_ref(Relaxed) {
+                if (*ptr.as_ptr()).try_add_ref(Relaxed) {
                     return Some(Shared::from(ptr));
                 }
             }

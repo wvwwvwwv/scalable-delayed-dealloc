@@ -10,7 +10,7 @@ use std::ptr::{addr_of, NonNull};
 /// The instance it passed to the `EBR` garbage collector when the [`Owned`] is dropped.
 #[derive(Debug)]
 pub struct Owned<T> {
-    instance_ptr: NonNull<RefCounted<T>>,
+    instance_ptr: *const RefCounted<T>,
 }
 
 impl<T: 'static> Owned<T> {
@@ -31,9 +31,9 @@ impl<T: 'static> Owned<T> {
     /// ```
     #[inline]
     pub fn new(t: T) -> Self {
-        let owned = Box::new(RefCounted::new_unique(t));
+        let boxed = Box::new(RefCounted::new_unique(t));
         Self {
-            instance_ptr: unsafe { NonNull::new_unchecked(Box::into_raw(owned)) },
+            instance_ptr: Box::into_raw(boxed),
         }
     }
 }
@@ -56,9 +56,9 @@ impl<T> Owned<T> {
     /// ```
     #[inline]
     pub unsafe fn new_unchecked(t: T) -> Self {
-        let owned = Box::new(RefCounted::new_unique(t));
+        let boxed = Box::new(RefCounted::new_unique(t));
         Self {
-            instance_ptr: NonNull::new_unchecked(Box::into_raw(owned)),
+            instance_ptr: Box::into_raw(boxed),
         }
     }
 
@@ -79,7 +79,7 @@ impl<T> Owned<T> {
     #[inline]
     #[must_use]
     pub fn get_guarded_ptr<'g>(&self, _guard: &'g Guard) -> Ptr<'g, T> {
-        Ptr::from(self.instance_ptr.as_ptr())
+        Ptr::from(self.instance_ptr)
     }
 
     /// Returns a reference to the instance that may live as long as the supplied [`Guard`].
@@ -99,7 +99,7 @@ impl<T> Owned<T> {
     #[inline]
     #[must_use]
     pub fn get_guarded_ref<'g>(&self, _guard: &'g Guard) -> &'g T {
-        unsafe { std::mem::transmute(&**self.underlying()) }
+        unsafe { std::mem::transmute::<&T, _>(&**self) }
     }
 
     /// Returns a mutable reference to the instance.
@@ -121,7 +121,7 @@ impl<T> Owned<T> {
     /// ```
     #[inline]
     pub unsafe fn get_mut(&mut self) -> &mut T {
-        self.instance_ptr.as_mut().get_mut_unique()
+        (*self.instance_ptr.cast_mut()).get_mut_unique()
     }
 
     /// Provides a raw pointer to the instance.
@@ -140,7 +140,7 @@ impl<T> Owned<T> {
     #[inline]
     #[must_use]
     pub fn as_ptr(&self) -> *const T {
-        addr_of!(**self.underlying())
+        addr_of!(**self)
     }
 
     /// Drops the instance immediately.
@@ -174,15 +174,9 @@ impl<T> Owned<T> {
     /// assert!(DROPPED.load(Relaxed));
     /// ```
     #[inline]
-    pub unsafe fn drop_in_place(mut self) {
-        drop(Box::from_raw(self.instance_ptr.as_mut()));
+    pub unsafe fn drop_in_place(self) {
+        drop(Box::from_raw(self.instance_ptr.cast_mut()));
         forget(self);
-    }
-
-    /// Provides a raw pointer to its [`RefCounted`].
-    #[inline]
-    pub(super) const fn get_underlying_ptr(&self) -> *mut RefCounted<T> {
-        self.instance_ptr.as_ptr()
     }
 
     /// Creates a new [`Owned`] from the given pointer.
@@ -190,26 +184,28 @@ impl<T> Owned<T> {
     pub(super) fn from(ptr: NonNull<RefCounted<T>>) -> Self {
         debug_assert_eq!(
             unsafe {
-                ptr.as_ref()
+                (*ptr.as_ptr())
                     .ref_cnt()
                     .load(std::sync::atomic::Ordering::Relaxed)
             },
             0
         );
-        Self { instance_ptr: ptr }
+        Self {
+            instance_ptr: ptr.as_ptr(),
+        }
     }
 
-    /// Returns a reference to the underlying instance.
+    /// Returns a pointer to the [`RefCounted`].
     #[inline]
-    fn underlying(&self) -> &RefCounted<T> {
-        unsafe { self.instance_ptr.as_ref() }
+    pub(super) const fn underlying_ptr(&self) -> *const RefCounted<T> {
+        self.instance_ptr
     }
 }
 
 impl<T> AsRef<T> for Owned<T> {
     #[inline]
     fn as_ref(&self) -> &T {
-        self.underlying()
+        unsafe { &*self.instance_ptr }
     }
 }
 
@@ -218,14 +214,14 @@ impl<T> Deref for Owned<T> {
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        self.underlying()
+        self.as_ref()
     }
 }
 
 impl<T> Drop for Owned<T> {
     #[inline]
     fn drop(&mut self) {
-        RefCounted::pass_to_collector(self.instance_ptr.as_ptr());
+        RefCounted::pass_to_collector(self.instance_ptr.cast_mut());
     }
 }
 

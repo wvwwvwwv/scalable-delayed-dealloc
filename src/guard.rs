@@ -154,7 +154,9 @@ impl Guard {
     /// ```
     #[inline]
     pub fn defer(&self, collectible: Box<dyn Collectible>) {
-        self.collect(Box::into_raw(collectible));
+        unsafe {
+            Collector::collect(self.collector_ptr, Box::into_raw(collectible));
+        }
     }
 
     /// Executes the supplied closure at a later point of time.
@@ -174,23 +176,6 @@ impl Guard {
     #[inline]
     pub fn defer_execute<F: 'static + FnOnce()>(&self, f: F) {
         self.defer(Box::new(DeferredClosure::new(f)));
-    }
-
-    /// Creates a new [`Guard`] for dropping an instance in the supplied [`Collector`].
-    #[inline]
-    pub(super) fn new_for_drop(collector_ptr: *mut Collector) -> Self {
-        unsafe {
-            Collector::new_guard(collector_ptr, false);
-        }
-        Self { collector_ptr }
-    }
-
-    /// Reclaims the supplied instance.
-    #[inline]
-    pub(super) fn collect(&self, collectible: *mut dyn Collectible) {
-        unsafe {
-            Collector::collect(self.collector_ptr, collectible);
-        }
     }
 }
 

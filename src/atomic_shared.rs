@@ -3,7 +3,7 @@ use super::ref_counted::RefCounted;
 use super::{Guard, Ptr, Shared, Tag};
 use std::mem::forget;
 use std::panic::UnwindSafe;
-use std::ptr::{null_mut, NonNull};
+use std::ptr::{null, null_mut, NonNull};
 use std::sync::atomic::Ordering::{self, Acquire, Relaxed};
 
 /// [`AtomicShared`] owns the underlying instance, and allows users to perform atomic operations
@@ -56,9 +56,10 @@ impl<T> AtomicShared<T> {
     #[inline]
     #[must_use]
     pub const fn from(shared: Shared<T>) -> Self {
-        let ptr = shared.get_underlying_ptr();
+        let ptr = shared.underlying_ptr();
         forget(shared);
-        let instance_ptr: std::sync::atomic::AtomicPtr<RefCounted<T>> = AtomicPtr::new(ptr);
+        let instance_ptr: std::sync::atomic::AtomicPtr<RefCounted<T>> =
+            AtomicPtr::new(ptr.cast_mut());
         Self { instance_ptr }
     }
 
@@ -67,9 +68,10 @@ impl<T> AtomicShared<T> {
     #[inline]
     #[must_use]
     pub fn from(shared: Shared<T>) -> Self {
-        let ptr = shared.get_underlying_ptr();
+        let ptr = shared.underlying_ptr();
         forget(shared);
-        let instance_ptr: loom::sync::atomic::AtomicPtr<RefCounted<T>> = AtomicPtr::new(ptr);
+        let instance_ptr: loom::sync::atomic::AtomicPtr<RefCounted<T>> =
+            AtomicPtr::new(ptr.cast_mut());
         Self { instance_ptr }
     }
 
@@ -159,9 +161,7 @@ impl<T> AtomicShared<T> {
     #[inline]
     pub fn swap(&self, new: (Option<Shared<T>>, Tag), order: Ordering) -> (Option<Shared<T>>, Tag) {
         let desired = Tag::update_tag(
-            new.0
-                .as_ref()
-                .map_or_else(null_mut, Shared::get_underlying_ptr),
+            new.0.as_ref().map_or_else(null, Shared::underlying_ptr),
             new.1,
         )
         .cast_mut();
@@ -270,9 +270,7 @@ impl<T> AtomicShared<T> {
         _guard: &'g Guard,
     ) -> Result<SharedPtrPair<'g, T>, SharedPtrPair<'g, T>> {
         let desired = Tag::update_tag(
-            new.0
-                .as_ref()
-                .map_or_else(null_mut, Shared::get_underlying_ptr),
+            new.0.as_ref().map_or_else(null, Shared::underlying_ptr),
             new.1,
         )
         .cast_mut();
@@ -335,9 +333,7 @@ impl<T> AtomicShared<T> {
         _guard: &'g Guard,
     ) -> Result<SharedPtrPair<'g, T>, SharedPtrPair<'g, T>> {
         let desired = Tag::update_tag(
-            new.0
-                .as_ref()
-                .map_or_else(null_mut, Shared::get_underlying_ptr),
+            new.0.as_ref().map_or_else(null, Shared::underlying_ptr),
             new.1,
         )
         .cast_mut();
@@ -375,23 +371,9 @@ impl<T> AtomicShared<T> {
     /// ```
     #[inline]
     #[must_use]
-    pub fn clone(&self, order: Ordering, _guard: &Guard) -> AtomicShared<T> {
-        unsafe {
-            let mut ptr = self.instance_ptr.load(order);
-            while let Some(underlying) = (Tag::unset_tag(ptr)).as_ref() {
-                if underlying.try_add_ref(Acquire) {
-                    return Self {
-                        instance_ptr: AtomicPtr::new(ptr),
-                    };
-                }
-                let ptr_again = self.instance_ptr.load(order);
-                if Tag::unset_tag(ptr) == Tag::unset_tag(ptr_again) {
-                    break;
-                }
-                ptr = ptr_again;
-            }
-            Self::null()
-        }
+    pub fn clone(&self, order: Ordering, guard: &Guard) -> AtomicShared<T> {
+        self.get_shared(order, guard)
+            .map_or_else(Self::null, |s| Self::from(s))
     }
 
     /// Tries to create a [`Shared`] out of `self`.
@@ -413,9 +395,9 @@ impl<T> AtomicShared<T> {
     #[must_use]
     pub fn get_shared(&self, order: Ordering, _guard: &Guard) -> Option<Shared<T>> {
         let mut ptr = Tag::unset_tag(self.instance_ptr.load(order));
-        while let Some(underlying_ptr) = NonNull::new(ptr.cast_mut()) {
-            if unsafe { underlying_ptr.as_ref() }.try_add_ref(Acquire) {
-                return Some(Shared::from(underlying_ptr));
+        while !ptr.is_null() {
+            if unsafe { (*ptr).try_add_ref(Acquire) } {
+                return NonNull::new(ptr.cast_mut()).map(Shared::from);
             }
             let ptr_again = Tag::unset_tag(self.instance_ptr.load(order));
             if ptr == ptr_again {
@@ -454,7 +436,7 @@ impl<T> AtomicShared<T> {
 impl<T> Clone for AtomicShared<T> {
     #[inline]
     fn clone(&self) -> AtomicShared<T> {
-        self.clone(Relaxed, &Guard::new())
+        self.clone(Acquire, &Guard::new())
     }
 }
 

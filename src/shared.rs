@@ -4,14 +4,13 @@ use std::mem::forget;
 use std::ops::Deref;
 use std::panic::UnwindSafe;
 use std::ptr::{addr_of, NonNull};
-use std::sync::atomic::Ordering::Relaxed;
 
 /// [`Shared`] is a reference-counted handle to an instance.
 ///
 /// The instance is passed to the EBR garbage collector when the last strong reference is dropped.
 #[derive(Debug)]
 pub struct Shared<T> {
-    instance_ptr: NonNull<RefCounted<T>>,
+    instance_ptr: *const RefCounted<T>,
 }
 
 impl<T: 'static> Shared<T> {
@@ -34,7 +33,7 @@ impl<T: 'static> Shared<T> {
     pub fn new(t: T) -> Self {
         let boxed = Box::new(RefCounted::new_shared(t));
         Self {
-            instance_ptr: unsafe { NonNull::new_unchecked(Box::into_raw(boxed)) },
+            instance_ptr: Box::into_raw(boxed),
         }
     }
 }
@@ -63,7 +62,7 @@ impl<T> Shared<T> {
     pub unsafe fn new_unchecked(t: T) -> Self {
         let boxed = Box::new(RefCounted::new_shared(t));
         Self {
-            instance_ptr: NonNull::new_unchecked(Box::into_raw(boxed)),
+            instance_ptr: Box::into_raw(boxed),
         }
     }
 
@@ -84,7 +83,7 @@ impl<T> Shared<T> {
     #[inline]
     #[must_use]
     pub fn get_guarded_ptr<'g>(&self, _guard: &'g Guard) -> Ptr<'g, T> {
-        Ptr::from(self.instance_ptr.as_ptr())
+        Ptr::from(self.instance_ptr)
     }
 
     /// Returns a reference to the instance that may live as long as the supplied [`Guard`].
@@ -104,7 +103,7 @@ impl<T> Shared<T> {
     #[inline]
     #[must_use]
     pub fn get_guarded_ref<'g>(&self, _guard: &'g Guard) -> &'g T {
-        unsafe { std::mem::transmute(&**self.underlying()) }
+        unsafe { std::mem::transmute::<&T, _>(&**self) }
     }
 
     /// Returns a mutable reference to the instance if the [`Shared`] is holding the only strong
@@ -128,7 +127,10 @@ impl<T> Shared<T> {
     /// ```
     #[inline]
     pub unsafe fn get_mut(&mut self) -> Option<&mut T> {
-        self.instance_ptr.as_mut().get_mut_shared()
+        self.instance_ptr
+            .cast_mut()
+            .as_mut()
+            .and_then(|r| r.get_mut_shared())
     }
 
     /// Provides a raw pointer to the instance.
@@ -149,7 +151,7 @@ impl<T> Shared<T> {
     #[inline]
     #[must_use]
     pub fn as_ptr(&self) -> *const T {
-        addr_of!(**self.underlying())
+        addr_of!(**self)
     }
 
     /// Releases the strong reference by passing `self` to the given [`Guard`].
@@ -169,8 +171,8 @@ impl<T> Shared<T> {
     #[inline]
     #[must_use]
     pub fn release(self) -> bool {
-        let released = if self.underlying().drop_ref() {
-            RefCounted::pass_to_collector(self.instance_ptr.as_ptr());
+        let released = if unsafe { (*self.instance_ptr).drop_ref() } {
+            RefCounted::pass_to_collector(self.instance_ptr.cast_mut());
             true
         } else {
             false
@@ -214,9 +216,9 @@ impl<T> Shared<T> {
     /// ```
     #[inline]
     #[must_use]
-    pub unsafe fn drop_in_place(mut self) -> bool {
-        let dropped = if self.underlying().drop_ref() {
-            drop(Box::from_raw(self.instance_ptr.as_mut()));
+    pub unsafe fn drop_in_place(self) -> bool {
+        let dropped = if (*self.instance_ptr).drop_ref() {
+            drop(Box::from_raw(self.instance_ptr.cast_mut()));
             true
         } else {
             false
@@ -225,45 +227,32 @@ impl<T> Shared<T> {
         dropped
     }
 
-    /// Provides a raw pointer to its [`RefCounted`].
-    #[inline]
-    pub(super) const fn get_underlying_ptr(&self) -> *mut RefCounted<T> {
-        self.instance_ptr.as_ptr()
-    }
-
     /// Creates a new [`Shared`] from the given pointer.
     #[inline]
     pub(super) fn from(ptr: NonNull<RefCounted<T>>) -> Self {
-        debug_assert_ne!(
-            unsafe {
-                ptr.as_ref()
-                    .ref_cnt()
-                    .load(std::sync::atomic::Ordering::Relaxed)
-            },
-            0
-        );
-        Self { instance_ptr: ptr }
+        Self {
+            instance_ptr: ptr.as_ptr(),
+        }
     }
 
-    /// Returns a reference to the instance.
+    /// Returns a pointer to the [`RefCounted`].
     #[inline]
-    fn underlying(&self) -> &RefCounted<T> {
-        unsafe { self.instance_ptr.as_ref() }
+    pub(super) const fn underlying_ptr(&self) -> *const RefCounted<T> {
+        self.instance_ptr
     }
 }
 
 impl<T> AsRef<T> for Shared<T> {
     #[inline]
     fn as_ref(&self) -> &T {
-        self.underlying()
+        unsafe { &*self.instance_ptr }
     }
 }
 
 impl<T> Clone for Shared<T> {
     #[inline]
     fn clone(&self) -> Self {
-        debug_assert_ne!(self.underlying().ref_cnt().load(Relaxed), 0);
-        self.underlying().add_ref();
+        unsafe { (*self.instance_ptr).add_ref() }
         Self {
             instance_ptr: self.instance_ptr,
         }
@@ -275,15 +264,15 @@ impl<T> Deref for Shared<T> {
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        self.underlying()
+        self.as_ref()
     }
 }
 
 impl<T> Drop for Shared<T> {
     #[inline]
     fn drop(&mut self) {
-        if self.underlying().drop_ref() {
-            RefCounted::pass_to_collector(self.instance_ptr.as_ptr());
+        if unsafe { (*self.instance_ptr).drop_ref() } {
+            RefCounted::pass_to_collector(self.instance_ptr.cast_mut());
         }
     }
 }

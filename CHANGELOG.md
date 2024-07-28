@@ -2,7 +2,7 @@
 
 2.1.0
 
-* Fully `Miri`-compliant.
+* Minor performance optimization.
 * Remove `Owned::release`.
 
 2.0.0

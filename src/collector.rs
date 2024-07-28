@@ -90,14 +90,10 @@ impl Collector {
                     let mut exit_guard =
                         ExitGuard::new((collector_ptr, false), |(collector_ptr, result)| {
                             if !result {
-                                unsafe {
-                                    Self::end_guard(collector_ptr);
-                                }
+                                Self::end_guard(collector_ptr);
                             }
                         });
-                    unsafe {
-                        Collector::epoch_updated(exit_guard.0);
-                    }
+                    Collector::epoch_updated(exit_guard.0);
                     exit_guard.1 = true;
                 }
             }
@@ -174,16 +170,16 @@ impl Collector {
         collector_ptr: *mut Collector,
         instance_ptr: *mut dyn Collectible,
     ) {
-        if let Some(ptr) = NonNull::new(instance_ptr) {
-            ptr.as_ref()
-                .set_next_ptr((*collector_ptr).current_instance_link.take());
-            (*collector_ptr).current_instance_link.replace(ptr);
-            (*collector_ptr).next_epoch_update = (*collector_ptr)
-                .next_epoch_update
-                .saturating_sub(1)
-                .min(Self::CADENCE / 4);
-            (*collector_ptr).has_garbage = true;
+        if instance_ptr.is_null() {
+            return;
         }
+        (*instance_ptr).set_next_ptr((*collector_ptr).current_instance_link.take());
+        (*collector_ptr).current_instance_link = NonNull::new(instance_ptr);
+        (*collector_ptr).next_epoch_update = (*collector_ptr)
+            .next_epoch_update
+            .saturating_sub(1)
+            .min(Self::CADENCE / 4);
+        (*collector_ptr).has_garbage = true;
     }
 
     /// Passes its garbage instances to other threads.
@@ -259,11 +255,11 @@ impl Collector {
         (*collector_ptr).has_garbage = (*collector_ptr).next_instance_link.is_some()
             || (*collector_ptr).previous_instance_link.is_some();
         while let Some(instance_ptr) = garbage_link.take() {
-            garbage_link = instance_ptr.as_ref().next_ptr();
+            garbage_link = (*instance_ptr.as_ptr()).next_ptr();
             let mut guard = ExitGuard::new(garbage_link, |mut garbage_link| {
                 while let Some(instance_ptr) = garbage_link.take() {
                     // Something went wrong during dropping and deallocating an instance.
-                    garbage_link = instance_ptr.as_ref().next_ptr();
+                    garbage_link = (*instance_ptr.as_ptr()).next_ptr();
 
                     // Previous `drop_and_dealloc` may have accessed `self.current_instance_link`.
                     std::sync::atomic::compiler_fence(Acquire);
@@ -286,14 +282,14 @@ impl Collector {
             (*collector_ptr).next_instance_link.take(),
         ] {
             while let Some(instance_ptr) = link.take() {
-                link = instance_ptr.as_ref().next_ptr();
+                link = (*instance_ptr.as_ptr()).next_ptr();
                 drop(Box::from_raw(instance_ptr.as_ptr()));
             }
         }
         while let Some(link) = (*collector_ptr).current_instance_link.take() {
             let mut current = Some(link);
             while let Some(instance_ptr) = current.take() {
-                current = instance_ptr.as_ref().next_ptr();
+                current = (*instance_ptr.as_ptr()).next_ptr();
                 drop(Box::from_raw(instance_ptr.as_ptr()));
             }
         }
@@ -463,14 +459,7 @@ unsafe fn try_drop_local_collector() {
     if collector_ptr.is_null() {
         return;
     }
-    let mut chain_head_ptr = GLOBAL_ROOT.chain_head.load(Relaxed);
-    if Tag::into_tag(chain_head_ptr) == Tag::Second {
-        // Another thread was joined before, and has yet to be cleaned up.
-        let guard = super::Guard::new_for_drop(collector_ptr);
-        Collector::scan(collector_ptr);
-        drop(guard);
-        chain_head_ptr = GLOBAL_ROOT.chain_head.load(Relaxed);
-    }
+    let chain_head_ptr = GLOBAL_ROOT.chain_head.load(Relaxed);
     if (*collector_ptr).next_link.load(Relaxed).is_null()
         && ptr::eq(collector_ptr, chain_head_ptr)
         && GLOBAL_ROOT
