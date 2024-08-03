@@ -72,7 +72,7 @@ jobs:
       - name: Doc
         run: cargo doc --document-private-items;
       - name: Nightly
-        run: RUST_BACKTRACE=1 cargo +nightly test --releas;
+        run: RUST_BACKTRACE=1 cargo +nightly test --release;
           RUST_BACKTRACE=1 cargo +nightly test --release -p examples
       - name: Loom
         run: cargo test --features loom --release --lib
