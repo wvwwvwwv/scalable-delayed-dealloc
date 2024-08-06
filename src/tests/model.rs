@@ -3,6 +3,7 @@
 mod test_model {
     use crate::{suspend, AtomicOwned, AtomicShared, Guard};
     use loom::sync::atomic::AtomicUsize;
+    use loom::thread::{spawn, yield_now};
     use std::sync::atomic::Ordering::Relaxed;
     use std::sync::Arc;
 
@@ -23,7 +24,7 @@ mod test_model {
             let guard = Guard::new();
             let ptr = data_owned.load(Relaxed, &guard);
 
-            let thread = loom::thread::spawn(move || {
+            let thread = spawn(move || {
                 let guard = Guard::new();
                 let ptr = data_owned.load(Relaxed, &guard);
                 drop(data_owned);
@@ -41,7 +42,7 @@ mod test_model {
 
             while drop_count.load(Relaxed) != 1 {
                 Guard::new().accelerate();
-                loom::thread::yield_now();
+                yield_now();
             }
 
             assert!(thread.join().is_ok());
@@ -56,7 +57,7 @@ mod test_model {
             let guard = Guard::new();
             let ptr = data_shared.load(Relaxed, &guard);
 
-            let thread = loom::thread::spawn(move || {
+            let thread = spawn(move || {
                 let data_shared_clone = data_shared.get_shared(Relaxed, &Guard::new()).unwrap();
                 drop(data_shared);
 
@@ -79,7 +80,7 @@ mod test_model {
 
             while drop_count.load(Relaxed) != 1 {
                 Guard::new().accelerate();
-                loom::thread::yield_now();
+                yield_now();
             }
 
             assert!(thread.join().is_ok());
