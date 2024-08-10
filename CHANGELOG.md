@@ -1,6 +1,6 @@
 # Changelog
 
-3.0.0
+3.0.1
 
 * Compatible with the [`miri`](https://github.com/rust-lang/miri) memory leak checker.
 * Make `Collectible` private since it is unsafe.

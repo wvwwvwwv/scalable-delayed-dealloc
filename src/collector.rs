@@ -436,7 +436,7 @@ impl Collector {
 impl Drop for Collector {
     #[inline]
     fn drop(&mut self) {
-        let collector_ptr = ptr::addr_of_mut!(*self);
+        let collector_ptr = addr_of_mut!(*self);
         unsafe {
             Self::clear_for_drop(collector_ptr);
         }
@@ -493,6 +493,7 @@ unsafe fn clear_local_collector() {
         }
 
         let mut temp_collector = Collector::default();
+        temp_collector.state.store(Collector::INACTIVE, Relaxed);
         local_collector.store(addr_of_mut!(temp_collector), Relaxed);
         if !Collector::clear_chain() {
             mark_scan_enforced();

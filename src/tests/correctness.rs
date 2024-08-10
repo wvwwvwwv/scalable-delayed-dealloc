@@ -34,6 +34,15 @@ mod test_correctness {
         }
     }
 
+    struct C<T>(Owned<T>);
+    impl<T> Drop for C<T> {
+        fn drop(&mut self) {
+            let guard = Guard::new();
+            let guarded_ptr = self.0.get_guarded_ptr(&guard);
+            assert!(!guarded_ptr.is_null());
+        }
+    }
+
     #[test]
     fn deferred() {
         static EXECUTED: AtomicBool = AtomicBool::new(false);
@@ -158,6 +167,12 @@ mod test_correctness {
         while !DESTROYED.load(Relaxed) {
             drop(Guard::new());
         }
+    }
+
+    #[test]
+    fn owned_nested_unchecked() {
+        let nested_owned = Owned::new(C(Owned::new(C(Owned::new(11)))));
+        assert_eq!(*(*(*nested_owned).0).0, 11);
     }
 
     #[test]
