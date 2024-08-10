@@ -1,13 +1,14 @@
+use super::collectible::{Collectible, Link};
 use super::exit_guard::ExitGuard;
 use super::maybe_std::fence as maybe_std_fence;
-use super::{Collectible, Epoch, Link, Tag};
-use std::ptr::{self, NonNull};
+use super::{Epoch, Tag};
+use std::ptr::{self, addr_of_mut, NonNull};
 use std::sync::atomic::Ordering::{Acquire, Relaxed, Release, SeqCst};
 use std::sync::atomic::{AtomicPtr, AtomicU8};
 
 /// [`Collector`] is a garbage collector that reclaims thread-locally unreachable instances
 /// when they are globally unreachable.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 #[repr(align(128))]
 pub(super) struct Collector {
     state: AtomicU8,
@@ -205,18 +206,9 @@ impl Collector {
 
     /// Allocates a new [`Collector`].
     fn alloc() -> *mut Collector {
-        let boxed = Box::new(Collector {
-            state: AtomicU8::new(Self::INACTIVE),
-            announcement: Epoch::default(),
-            next_epoch_update: Self::CADENCE,
-            has_garbage: false,
-            num_readers: 0,
-            previous_instance_link: Link::default().next_ptr(),
-            current_instance_link: Link::default().next_ptr(),
-            next_instance_link: Link::default().next_ptr(),
-            next_link: AtomicPtr::default(),
-            link: Link::default(),
-        });
+        let boxed = Box::new(Collector::default());
+        boxed.state.store(Self::INACTIVE, Relaxed);
+
         let ptr = Box::into_raw(boxed);
         let mut current = GLOBAL_ROOT.chain_head.load(Relaxed);
         loop {
@@ -297,44 +289,13 @@ impl Collector {
 
     /// Scans the [`Collector`] instances to update the global epoch.
     unsafe fn scan(collector_ptr: *mut Collector) -> bool {
-        debug_assert_eq!((*collector_ptr).state.load(Relaxed) & Self::INACTIVE, 0);
-        debug_assert_eq!(
-            (*collector_ptr).state.load(Relaxed),
-            u8::from((*collector_ptr).announcement)
-        );
+        debug_assert_eq!((*collector_ptr).state.load(Relaxed) & Self::INVALID, 0);
 
         // Only one thread that acquires the chain lock is allowed to scan the thread-local
         // collectors.
-        let lock_result = GLOBAL_ROOT
-            .chain_head
-            .fetch_update(Acquire, Acquire, |p| {
-                let tag = Tag::into_tag(p);
-                if tag == Tag::First || tag == Tag::Both {
-                    None
-                } else {
-                    Some(Tag::update_tag(p, Tag::First).cast_mut())
-                }
-            })
-            .map(|p| Tag::unset_tag(p).cast_mut());
+        let lock_result = Self::lock_chain();
         if let Ok(mut current_collector_ptr) = lock_result {
-            let _guard = ExitGuard::new((), |()| {
-                // Unlock the chain.
-                loop {
-                    let result = GLOBAL_ROOT.chain_head.fetch_update(Release, Relaxed, |p| {
-                        let tag = Tag::into_tag(p);
-                        debug_assert!(tag == Tag::First || tag == Tag::Both);
-                        let new_tag = if tag == Tag::First {
-                            Tag::None
-                        } else {
-                            Tag::Second
-                        };
-                        Some(Tag::update_tag(p, new_tag).cast_mut())
-                    });
-                    if result.is_ok() {
-                        break;
-                    }
-                }
-            });
+            let _guard = ExitGuard::new((), |()| Self::unlock_chain());
 
             let known_epoch = (*collector_ptr).state.load(Relaxed);
             let mut update_global_epoch = true;
@@ -396,6 +357,80 @@ impl Collector {
 
         false
     }
+
+    /// Clears the [`Collector`] chain to if all are invalid.
+    unsafe fn clear_chain() -> bool {
+        let lock_result = Self::lock_chain();
+        if let Ok(collector_head) = lock_result {
+            let _guard = ExitGuard::new((), |()| Self::unlock_chain());
+
+            let mut current_collector_ptr = collector_head;
+            while !current_collector_ptr.is_null() {
+                if ((*current_collector_ptr).state.load(Relaxed) & Self::INVALID) == 0 {
+                    return false;
+                }
+                current_collector_ptr = (*current_collector_ptr).next_link.load(Relaxed);
+            }
+
+            // Reaching here means that there is no `Ptr` that possibly sees any garbage instances
+            // in those `Collector` instances in the chain.
+            let result = GLOBAL_ROOT.chain_head.fetch_update(Release, Relaxed, |p| {
+                if Tag::unset_tag(p) == collector_head {
+                    let tag = Tag::into_tag(p);
+                    debug_assert!(tag == Tag::First || tag == Tag::Both);
+                    Some(Tag::update_tag(ptr::null::<Collector>(), tag).cast_mut())
+                } else {
+                    None
+                }
+            });
+
+            if result.is_ok() {
+                let mut current_collector_ptr = collector_head;
+                while !current_collector_ptr.is_null() {
+                    let next_collector_ptr = (*current_collector_ptr).next_link.load(Relaxed);
+                    drop(Box::from_raw(current_collector_ptr));
+                    current_collector_ptr = next_collector_ptr;
+                }
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Locks the chain.
+    fn lock_chain() -> Result<*mut Collector, *mut Collector> {
+        GLOBAL_ROOT
+            .chain_head
+            .fetch_update(Acquire, Acquire, |p| {
+                let tag = Tag::into_tag(p);
+                if tag == Tag::First || tag == Tag::Both {
+                    None
+                } else {
+                    Some(Tag::update_tag(p, Tag::First).cast_mut())
+                }
+            })
+            .map(|p| Tag::unset_tag(p).cast_mut())
+    }
+
+    /// Unlocks the chain.
+    fn unlock_chain() {
+        loop {
+            let result = GLOBAL_ROOT.chain_head.fetch_update(Release, Relaxed, |p| {
+                let tag = Tag::into_tag(p);
+                debug_assert!(tag == Tag::First || tag == Tag::Both);
+                let new_tag = if tag == Tag::First {
+                    Tag::None
+                } else {
+                    // Retain the mark.
+                    Tag::Second
+                };
+                Some(Tag::update_tag(p, new_tag).cast_mut())
+            });
+            if result.is_ok() {
+                break;
+            }
+        }
+    }
 }
 
 impl Drop for Collector {
@@ -431,7 +466,7 @@ impl Drop for CollectorAnchor {
     #[inline]
     fn drop(&mut self) {
         unsafe {
-            try_drop_local_collector();
+            clear_local_collector();
         }
     }
 }
@@ -449,35 +484,23 @@ fn mark_scan_enforced() {
     });
 }
 
-/// Tries to drop the local [`Collector`] if it is the sole survivor.
-///
-/// # Safety
-///
-/// The function is safe to call only when the thread is being joined.
-unsafe fn try_drop_local_collector() {
-    let collector_ptr = LOCAL_COLLECTOR.with(|local_collector| local_collector.load(Relaxed));
-    if collector_ptr.is_null() {
-        return;
-    }
-    let chain_head_ptr = GLOBAL_ROOT.chain_head.load(Relaxed);
-    if (*collector_ptr).next_link.load(Relaxed).is_null()
-        && ptr::eq(collector_ptr, chain_head_ptr)
-        && GLOBAL_ROOT
-            .chain_head
-            .compare_exchange(chain_head_ptr, ptr::null_mut(), Relaxed, Relaxed)
-            .is_ok()
-    {
-        // If it is the head, and the only `Collector` in the chain, drop it here.
-        //
-        // The `Collector` needs to be cleared before being dropped since nested `Collectible`s may
-        // access the `Collector`, causing trouble with `MIRI`.
-        Collector::clear_for_drop(collector_ptr);
-        drop(Box::from_raw(collector_ptr));
-        return;
-    }
+/// Tries to clear the local [`Collector`] and the chain.
+unsafe fn clear_local_collector() {
+    LOCAL_COLLECTOR.with(|local_collector| {
+        let collector_ptr = local_collector.load(Relaxed);
+        if !collector_ptr.is_null() {
+            (*collector_ptr).state.fetch_or(Collector::INVALID, Release);
+        }
 
-    (*collector_ptr).state.fetch_or(Collector::INVALID, Release);
-    mark_scan_enforced();
+        let mut temp_collector = Collector::default();
+        local_collector.store(addr_of_mut!(temp_collector), Relaxed);
+        if !Collector::clear_chain() {
+            mark_scan_enforced();
+        }
+
+        Collector::clear_for_drop(addr_of_mut!(temp_collector));
+        local_collector.store(ptr::null_mut(), Relaxed);
+    });
 }
 
 thread_local! {

@@ -1,5 +1,5 @@
+use super::collectible::{Collectible, Link};
 use super::collector::Collector;
-use super::{Collectible, Link};
 use std::ops::Deref;
 use std::ptr::{self, addr_of, NonNull};
 use std::sync::atomic::AtomicUsize;

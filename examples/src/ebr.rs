@@ -3,7 +3,7 @@ mod examples {
     use sdd::{AtomicShared, Guard, Owned, Shared, Tag};
     use std::sync::atomic::AtomicIsize;
     use std::sync::atomic::Ordering::{Acquire, Relaxed};
-    use std::thread;
+    use std::thread::{self, yield_now};
 
     struct R(&'static AtomicIsize);
     impl Drop for R {
@@ -35,8 +35,8 @@ mod examples {
         drop(guard);
 
         while DROP_CNT.load(Relaxed) != 1 {
-            let guard = Guard::new();
-            drop(guard);
+            Guard::new().accelerate();
+            yield_now();
         }
         assert_eq!(DROP_CNT.load(Relaxed), 1);
     }
@@ -81,8 +81,8 @@ mod examples {
         });
 
         while DROP_CNT.load(Relaxed) != 2 {
-            let guard = Guard::new();
-            drop(guard);
+            Guard::new().accelerate();
+            yield_now();
         }
         assert_eq!(DROP_CNT.load(Relaxed), 2);
     }

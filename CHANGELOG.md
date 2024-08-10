@@ -1,5 +1,11 @@
 # Changelog
 
+3.0.0
+
+* Make `Collectible` private since it is unsafe.
+* Remove `Guard::defer` which depends on `Collectible`.
+* Remove `prepare`.
+
 2.1.0
 
 * Minor performance optimization.

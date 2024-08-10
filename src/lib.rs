@@ -10,9 +10,6 @@ pub use atomic_shared::AtomicShared;
 mod guard;
 pub use guard::Guard;
 
-mod collectible;
-pub use collectible::{Collectible, Link};
-
 mod epoch;
 pub use epoch::Epoch;
 
@@ -28,33 +25,10 @@ pub use shared::Shared;
 mod tag;
 pub use tag::Tag;
 
+mod collectible;
 mod collector;
 mod exit_guard;
 mod ref_counted;
-
-/// Prepares a garbage collector for the current thread.
-///
-/// This method is useful in an environment where heap memory allocation is strictly controlled.
-/// [`Guard::new`] will never fail afterwards in the current thread until [`suspend`] is called as
-/// long as [`drop`] of every [`Collectible`] type is infallible.
-///
-/// # Panics
-///
-/// Panics if memory allocation failed.
-///
-/// # Examples
-///
-/// ```
-/// use sdd::{prepare, Guard};
-///
-/// prepare();
-///
-/// let guard = Guard::new();
-/// ```
-#[inline]
-pub fn prepare() {
-    collector::Collector::current();
-}
 
 /// Suspends the garbage collector of the current thread.
 ///

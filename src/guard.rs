@@ -1,6 +1,6 @@
 use super::collectible::DeferredClosure;
 use super::collector::Collector;
-use super::{Collectible, Epoch};
+use super::Epoch;
 use std::panic::UnwindSafe;
 
 /// [`Guard`] allows the user to read [`AtomicShared`](super::AtomicShared) and keeps the
@@ -43,16 +43,15 @@ impl Guard {
     /// This method can be used to check whether a retired memory region is potentially reachable or
     /// not. A chunk of memory retired in a witnessed [`Epoch`] can be deallocated after the thread
     /// has observed three new epochs. For instance, if the witnessed epoch value is `1` in the
-    /// current thread where the global epoch value is `2`, and an instance of a [`Collectible`]
-    /// type is retired in the same thread, the instance can be dropped when the thread witnesses
-    /// `0` which is three epochs away from `1`.
+    /// current thread where the global epoch value is `2`, and an instance is retired in the same
+    /// thread, the instance can be dropped when the thread witnesses `0` which is three epochs away
+    /// from `1`.
     ///
     /// In other words, there can be potential readers of the memory chunk until the current thread
     /// witnesses the previous epoch. In the above example, the global epoch can be in `2`
     /// while the current thread has only witnessed `1`, and therefore there can a reader of the
     /// memory chunk in another thread in epoch `2`. The reader can survive until the global epoch
-    /// reaches `0` again, because the thread being in `2` prevents the global epoch from reaching
-    /// `0`.
+    /// reaches `0`, because the thread being in `2` prevents the global epoch from reaching `0`.
     ///
     /// # Examples
     ///
@@ -92,7 +91,6 @@ impl Guard {
     ///
     /// assert!(DROPPED.load(Relaxed));
     /// assert_eq!(Guard::new().epoch(), epoch_before.prev());
-    ///
     /// ```
     #[inline]
     #[must_use]
@@ -123,42 +121,6 @@ impl Guard {
         }
     }
 
-    /// Defers dropping and memory reclamation of the supplied [`Box`] of a type implementing
-    /// [`Collectible`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use sdd::{Collectible, Guard, Link};
-    /// use std::ptr::NonNull;
-    ///
-    /// struct C(usize, Link);
-    ///
-    /// impl Collectible for C {
-    ///     fn next_ptr(&self) -> Option<NonNull<dyn Collectible>> {
-    ///         self.1.next_ptr()
-    ///     }
-    ///     fn set_next_ptr(&self, next_ptr: Option<NonNull<dyn Collectible>>) {
-    ///         self.1.set_next_ptr(next_ptr);
-    ///     }
-    /// }
-    ///
-    /// let boxed: Box<C> = Box::new(C(7, Link::default()));
-    ///
-    /// let static_ref: &'static C = unsafe { std::mem::transmute(&*boxed) };
-    ///
-    /// let guard = Guard::new();
-    /// guard.defer(boxed);
-    ///
-    /// assert_eq!(static_ref.0, 7);
-    /// ```
-    #[inline]
-    pub fn defer(&self, collectible: Box<dyn Collectible>) {
-        unsafe {
-            Collector::collect(self.collector_ptr, Box::into_raw(collectible));
-        }
-    }
-
     /// Executes the supplied closure at a later point of time.
     ///
     /// It is guaranteed that the closure will be executed after every [`Guard`] at the moment when
@@ -175,7 +137,12 @@ impl Guard {
     /// ```
     #[inline]
     pub fn defer_execute<F: 'static + FnOnce()>(&self, f: F) {
-        self.defer(Box::new(DeferredClosure::new(f)));
+        unsafe {
+            Collector::collect(
+                self.collector_ptr,
+                Box::into_raw(Box::new(DeferredClosure::new(f))),
+            );
+        }
     }
 }
 

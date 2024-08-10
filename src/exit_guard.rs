@@ -4,7 +4,7 @@
 use std::ops::{Deref, DerefMut};
 
 /// [`ExitGuard`] captures the environment and invokes the defined closure at the end of the scope.
-pub(crate) struct ExitGuard<T, F: FnOnce(T)> {
+pub(super) struct ExitGuard<T, F: FnOnce(T)> {
     drop_callback: Option<(T, F)>,
 }
 

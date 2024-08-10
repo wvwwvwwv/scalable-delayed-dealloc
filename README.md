@@ -18,7 +18,7 @@ Its delayed deallocation algorithm is based on a variant of epoch-based reclamat
 This crate can be used _without an `unsafe` block_.
 
 ```rust
-use sdd::{suspend, AtomicOwned, AtomicShared, Guard, Ptr, Shared, Tag};
+use sdd::{suspend, AtomicOwned, AtomicShared, Guard, Owned, Ptr, Shared, Tag};
 use std::sync::atomic::Ordering::Relaxed;
 
 // `atomic_shared` holds a strong reference to `17`.
@@ -51,7 +51,7 @@ ptr.set_tag(Tag::First);
 // The ownership of the contained instance is transferred to the return value of CAS.
 let prev: Shared<usize> = atomic_shared.compare_exchange(
     ptr,
-    (Some(Shared::new(18)), Tag::Second),
+    (Some(Shared::new(19)), Tag::Second),
     Relaxed,
     Relaxed,
     &guard).unwrap().0.unwrap();
@@ -62,7 +62,7 @@ drop(prev);
 
 // `sdd::AtomicShared` can be converted into `sdd::Shared`.
 let shared: Shared<usize> = atomic_shared.into_shared(Relaxed).unwrap();
-assert_eq!(*shared, 18);
+assert_eq!(*shared, 19);
 
 // `18` and `19` will be garbage-collected later.
 drop(shared);
@@ -74,6 +74,10 @@ assert_eq!(*ptr.as_ref().unwrap(), 17);
 // Execution of a closure can be deferred until all the current readers are gone.
 guard.defer_execute(|| println!("deferred"));
 drop(guard);
+
+// `sdd::Owned` and `sdd::Shared` can be nested.
+let shared_nested: Shared<Owned<Shared<usize>>> = Shared::new(Owned::new(Shared::new(20)));
+assert_eq!(***shared_nested, 20);
 
 // If the thread is expected to lie dormant for a while, call `suspend()` to allow
 // others to reclaim the memory.

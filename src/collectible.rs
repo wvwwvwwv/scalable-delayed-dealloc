@@ -4,38 +4,7 @@ use std::sync::atomic::{AtomicPtr, AtomicUsize};
 
 /// [`Collectible`] defines the memory layout for the type in order to be passed to the garbage
 /// collector.
-///
-/// # Examples
-///
-/// ```
-/// use sdd::{Collectible, Guard, Link};
-/// use std::ptr::NonNull;
-///
-/// struct LazyString(String, Link);
-///
-/// impl Collectible for LazyString {
-///     fn next_ptr(&self) -> Option<NonNull<dyn Collectible>> {
-///         self.1.next_ptr()
-///     }
-///     fn set_next_ptr(&self, next_ptr: Option<NonNull<dyn Collectible>>) {
-///         self.1.set_next_ptr(next_ptr);
-///     }
-/// }
-///
-/// let boxed: Box<LazyString> = Box::new(LazyString(String::from("Lazy"), Link::default()));
-///
-/// let static_ref: &'static LazyString = unsafe { std::mem::transmute(&*boxed) };
-/// let guard_for_ref = Guard::new();
-///
-/// let guard_to_drop = Guard::new();
-/// guard_to_drop.defer(boxed);
-/// drop(guard_to_drop);
-///
-/// // The reference is valid as long as a `Guard` that had been created before `boxed` was
-/// // passed to a `Guard` survives.
-/// assert_eq!(static_ref.0, "Lazy");
-/// ```
-pub trait Collectible {
+pub(super) trait Collectible {
     /// Returns the next [`Collectible`] pointer.
     fn next_ptr(&self) -> Option<NonNull<dyn Collectible>>;
 

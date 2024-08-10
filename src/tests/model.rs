@@ -5,7 +5,7 @@ mod test_model {
     use loom::sync::atomic::AtomicUsize;
     use loom::thread::{spawn, yield_now};
     use std::sync::atomic::Ordering::Relaxed;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
 
     struct A(String, Arc<AtomicUsize>);
     impl Drop for A {
@@ -14,8 +14,11 @@ mod test_model {
         }
     }
 
+    static SERIALIZER: Mutex<()> = Mutex::new(());
+
     #[test]
-    fn ebr() {
+    fn ebr_owned() {
+        let _guard = SERIALIZER.lock().unwrap();
         loom::model(|| {
             let str = "HOW ARE YOU HOW ARE YOU";
             let drop_count = Arc::new(AtomicUsize::new(0));
@@ -48,7 +51,11 @@ mod test_model {
             assert!(thread.join().is_ok());
             assert_eq!(drop_count.load(Relaxed), 1);
         });
+    }
 
+    #[test]
+    fn ebr_shared() {
+        let _guard = SERIALIZER.lock().unwrap();
         loom::model(|| {
             let str = "HOW ARE YOU HOW ARE YOU";
             let drop_count = Arc::new(AtomicUsize::new(0));
