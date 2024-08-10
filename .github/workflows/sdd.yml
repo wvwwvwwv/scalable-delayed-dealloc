@@ -54,8 +54,20 @@ jobs:
       - name: Prepare
         run: rustup toolchain add nightly;
           rustup component add rust-src --toolchain nightly;
-          rustup component add clippy --toolchain nightly;
           rustup component add miri --toolchain nightly
+      - name: Loom
+        run: cargo test --features loom --release --lib
+      - name: Miri
+        run: MIRIFLAGS="-Zmiri-disable-data-race-detector" cargo +nightly miri test
+  check-misc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare
+        run: rustup toolchain add nightly;
+          rustup component add rust-src --toolchain nightly;
+          rustup component add clippy --toolchain nightly;
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-msrv, cargo-spellcheck
@@ -74,10 +86,6 @@ jobs:
       - name: Nightly
         run: RUST_BACKTRACE=1 cargo +nightly test --release;
           RUST_BACKTRACE=1 cargo +nightly test --release -p examples
-      - name: Loom
-        run: cargo test --features loom --release --lib
-      - name: Miri
-        run: MIRIFLAGS="-Zmiri-disable-data-race-detector" cargo +nightly miri test
   benchmark:
     runs-on: ubuntu-latest
     timeout-minutes: 15
