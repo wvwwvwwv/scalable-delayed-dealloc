@@ -34,9 +34,8 @@ impl<T: 'static> AtomicOwned<T> {
     /// ```
     #[inline]
     pub fn new(t: T) -> Self {
-        let boxed = Box::new(RefCounted::new_unique(t));
         Self {
-            instance_ptr: AtomicPtr::new(Box::into_raw(boxed)),
+            instance_ptr: AtomicPtr::new(RefCounted::new_unique(t).cast_mut()),
         }
     }
 }

@@ -15,22 +15,24 @@ pub(super) struct RefCounted<T> {
 impl<T> RefCounted<T> {
     /// Creates a new [`RefCounted`] that allows ownership sharing.
     #[inline]
-    pub(super) const fn new_shared(t: T) -> Self {
-        Self {
-            instance: t,
+    pub(super) fn new_shared(instance: T) -> *const RefCounted<T> {
+        let boxed = Box::new(Self {
+            instance,
             next_or_refcnt: Link::new_shared(),
-        }
+        });
+        Box::into_raw(boxed)
     }
 
     /// Creates a new [`RefCounted`] that disallows reference counting.
     ///
     /// The reference counter field is never used until the instance is retired.
     #[inline]
-    pub(super) const fn new_unique(t: T) -> Self {
-        Self {
-            instance: t,
+    pub(super) fn new_unique(instance: T) -> *const RefCounted<T> {
+        let boxed = Box::new(Self {
+            instance,
             next_or_refcnt: Link::new_unique(),
-        }
+        });
+        Box::into_raw(boxed)
     }
 
     /// Tries to add a strong reference to the underlying instance.

@@ -1,5 +1,9 @@
 # Changelog
 
+3.0.2
+
+* Make `SDD` much more friendly to `miri`.
+
 3.0.1
 
 * Compatible with the [`miri`](https://github.com/rust-lang/miri) memory leak checker.

@@ -31,9 +31,8 @@ impl<T: 'static> Shared<T> {
     /// ```
     #[inline]
     pub fn new(t: T) -> Self {
-        let boxed = Box::new(RefCounted::new_shared(t));
         Self {
-            instance_ptr: Box::into_raw(boxed),
+            instance_ptr: RefCounted::new_shared(t),
         }
     }
 }
@@ -60,9 +59,8 @@ impl<T> Shared<T> {
     /// ```
     #[inline]
     pub unsafe fn new_unchecked(t: T) -> Self {
-        let boxed = Box::new(RefCounted::new_shared(t));
         Self {
-            instance_ptr: Box::into_raw(boxed),
+            instance_ptr: RefCounted::new_shared(t),
         }
     }
 

@@ -31,9 +31,8 @@ impl<T: 'static> Owned<T> {
     /// ```
     #[inline]
     pub fn new(t: T) -> Self {
-        let boxed = Box::new(RefCounted::new_unique(t));
         Self {
-            instance_ptr: Box::into_raw(boxed),
+            instance_ptr: RefCounted::new_unique(t),
         }
     }
 }
@@ -56,9 +55,8 @@ impl<T> Owned<T> {
     /// ```
     #[inline]
     pub unsafe fn new_unchecked(t: T) -> Self {
-        let boxed = Box::new(RefCounted::new_unique(t));
         Self {
-            instance_ptr: Box::into_raw(boxed),
+            instance_ptr: RefCounted::new_unique(t),
         }
     }
 

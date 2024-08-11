@@ -5,7 +5,7 @@ mod test_correctness {
     use crate::{suspend, AtomicOwned, AtomicShared, Guard, Owned, Ptr, Shared, Tag};
     use std::ops::Deref;
     use std::panic::UnwindSafe;
-    use std::sync::atomic::Ordering::{Acquire, Relaxed, Release};
+    use std::sync::atomic::Ordering::{AcqRel, Acquire, Relaxed, Release};
     use std::sync::atomic::{AtomicBool, AtomicUsize};
     use std::thread;
 
@@ -404,8 +404,8 @@ mod test_correctness {
                             Some(Shared::new(String::from("How can I help you?"))),
                             Tag::Second,
                         ),
-                        Release,
-                        Relaxed,
+                        AcqRel,
+                        Acquire,
                         &guard,
                     ) {
                         if let Some(shared) = passed {
@@ -434,7 +434,7 @@ mod test_correctness {
 
                     let (old, _) = atomic_shared.swap(
                         (Some(Shared::new(String::from("How are you?"))), Tag::Second),
-                        Release,
+                        AcqRel,
                     );
                     if let Some(shared) = old {
                         assert!(*shared == "How are you?" || *shared == "How can I help you?");

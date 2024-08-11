@@ -307,7 +307,7 @@ impl Collector {
                     continue;
                 }
 
-                let collector_state = (*current_collector_ptr).state.load(Relaxed);
+                let collector_state = (*current_collector_ptr).state.load(Acquire);
                 let next_collector_ptr = (*current_collector_ptr).next_link.load(Relaxed);
                 if (collector_state & Self::INVALID) != 0 {
                     // The collector is obsolete.
@@ -366,7 +366,7 @@ impl Collector {
 
             let mut current_collector_ptr = collector_head;
             while !current_collector_ptr.is_null() {
-                if ((*current_collector_ptr).state.load(Relaxed) & Self::INVALID) == 0 {
+                if ((*current_collector_ptr).state.load(Acquire) & Self::INVALID) == 0 {
                     return false;
                 }
                 current_collector_ptr = (*current_collector_ptr).next_link.load(Relaxed);

@@ -34,9 +34,8 @@ impl<T: 'static> AtomicShared<T> {
     /// ```
     #[inline]
     pub fn new(t: T) -> Self {
-        let boxed = Box::new(RefCounted::new_shared(t));
         Self {
-            instance_ptr: AtomicPtr::new(Box::into_raw(boxed)),
+            instance_ptr: AtomicPtr::new(RefCounted::new_shared(t).cast_mut()),
         }
     }
 }
@@ -399,11 +398,7 @@ impl<T> AtomicShared<T> {
             if unsafe { (*ptr).try_add_ref(Acquire) } {
                 return NonNull::new(ptr.cast_mut()).map(Shared::from);
             }
-            let ptr_again = Tag::unset_tag(self.instance_ptr.load(order));
-            if ptr == ptr_again {
-                break;
-            }
-            ptr = ptr_again;
+            ptr = Tag::unset_tag(self.instance_ptr.load(order));
         }
         None
     }
