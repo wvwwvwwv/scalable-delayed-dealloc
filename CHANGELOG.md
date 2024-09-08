@@ -1,5 +1,9 @@
 # Changelog
 
+3.0.3
+
+* Fix a rare memory ordering issue when dropping thread-local storage.
+
 3.0.2
 
 * Make `SDD` much more friendly to `miri`.

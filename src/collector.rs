@@ -494,13 +494,13 @@ unsafe fn clear_local_collector() {
 
         let mut temp_collector = Collector::default();
         temp_collector.state.store(Collector::INACTIVE, Relaxed);
-        local_collector.store(addr_of_mut!(temp_collector), Relaxed);
+        local_collector.store(addr_of_mut!(temp_collector), Release);
         if !Collector::clear_chain() {
             mark_scan_enforced();
         }
 
         Collector::clear_for_drop(addr_of_mut!(temp_collector));
-        local_collector.store(ptr::null_mut(), Relaxed);
+        local_collector.store(ptr::null_mut(), Release);
     });
 }
 
