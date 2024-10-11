@@ -334,8 +334,8 @@ mod test_correctness {
     fn reclaim_collector_nested() {
         static DEALLOCATED: AtomicUsize = AtomicUsize::new(0);
 
-        let num_threads = 16;
-        let num_iter = 16;
+        let num_threads = if cfg!(miri) { 4 } else { 16 };
+        let num_iter = if cfg!(miri) { 4 } else { 16 };
 
         for _ in 0..num_iter {
             assert!(suspend());
@@ -384,10 +384,11 @@ mod test_correctness {
         let atomic_shared: Shared<AtomicShared<String>> =
             Shared::new(AtomicShared::new(String::from("How are you?")));
         let mut thread_handles = Vec::new();
-        for _ in 0..16 {
+        let concurrency = if cfg!(miri) { 4 } else { 16 };
+        for _ in 0..concurrency {
             let atomic_shared = atomic_shared.clone();
             thread_handles.push(thread::spawn(move || {
-                for _ in 0..16 {
+                for _ in 0..concurrency {
                     let guard = Guard::new();
                     let mut ptr = (*atomic_shared).load(Acquire, &guard);
                     assert!(ptr.tag() == Tag::None || ptr.tag() == Tag::Second);
@@ -455,7 +456,8 @@ mod test_correctness {
         for t in 0..4 {
             let atomic_shared = atomic_shared.clone();
             thread_handles.push(thread::spawn(move || {
-                for i in 0..256 {
+                let num_iter = if cfg!(miri) { 16 } else { 256 };
+                for i in 0..num_iter {
                     if t == 0 {
                         let tag = if i % 3 == 0 {
                             Tag::First

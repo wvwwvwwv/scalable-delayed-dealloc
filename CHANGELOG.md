@@ -1,16 +1,20 @@
 # Changelog
 
+3.0.4
+
+* Adjust tests to be more Miri friendly.
+
 3.0.3
 
 * Fix a rare memory ordering issue when dropping thread-local storage.
 
 3.0.2
 
-* Make `SDD` much more friendly to `miri`.
+* Make `SDD` much more friendly to Miri.
 
 3.0.1
 
-* Compatible with the [`miri`](https://github.com/rust-lang/miri) memory leak checker.
+* Compatible with the [`Miri`](https://github.com/rust-lang/miri) memory leak checker.
 * Make `Collectible` private since it is unsafe.
 * Remove `Guard::defer` which depends on `Collectible`.
 * Remove `prepare`.
