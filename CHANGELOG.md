@@ -1,5 +1,9 @@
 # Changelog
 
+3.0.5
+
+* Fix minor linting errors.
+
 3.0.4
 
 * Adjust tests to be more Miri friendly.

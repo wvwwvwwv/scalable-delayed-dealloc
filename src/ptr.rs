@@ -232,29 +232,29 @@ impl<'g, T> Ptr<'g, T> {
     }
 }
 
-impl<'g, T> Clone for Ptr<'g, T> {
+impl<T> Clone for Ptr<'_, T> {
     #[inline]
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<'g, T> Copy for Ptr<'g, T> {}
+impl<T> Copy for Ptr<'_, T> {}
 
-impl<'g, T> Default for Ptr<'g, T> {
+impl<T> Default for Ptr<'_, T> {
     #[inline]
     fn default() -> Self {
         Self::null()
     }
 }
 
-impl<'g, T> Eq for Ptr<'g, T> {}
+impl<T> Eq for Ptr<'_, T> {}
 
-impl<'g, T> PartialEq for Ptr<'g, T> {
+impl<T> PartialEq for Ptr<'_, T> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.instance_ptr == other.instance_ptr
     }
 }
 
-impl<'g, T: UnwindSafe> UnwindSafe for Ptr<'g, T> {}
+impl<T: UnwindSafe> UnwindSafe for Ptr<'_, T> {}
