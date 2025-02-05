@@ -1,5 +1,9 @@
 # Changelog
 
+3.0.6
+
+* Fix a potential use-after-free issue when thread-local storage is dropped.
+
 3.0.5
 
 * Fix minor linting errors.

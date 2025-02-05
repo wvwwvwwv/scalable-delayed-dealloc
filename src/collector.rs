@@ -466,7 +466,23 @@ impl Drop for CollectorAnchor {
     #[inline]
     fn drop(&mut self) {
         unsafe {
-            clear_local_collector();
+            // `LOCAL_COLLECTOR` is the last thread-local variable to be dropped.
+            LOCAL_COLLECTOR.with(|local_collector| {
+                let collector_ptr = local_collector.load(Relaxed);
+                if !collector_ptr.is_null() {
+                    (*collector_ptr).state.fetch_or(Collector::INVALID, Release);
+                }
+
+                let mut temp_collector = Collector::default();
+                temp_collector.state.store(Collector::INACTIVE, Relaxed);
+                local_collector.store(addr_of_mut!(temp_collector), Release);
+                if !Collector::clear_chain() {
+                    mark_scan_enforced();
+                }
+
+                Collector::clear_for_drop(addr_of_mut!(temp_collector));
+                local_collector.store(ptr::null_mut(), Release);
+            });
         }
     }
 }
@@ -484,29 +500,9 @@ fn mark_scan_enforced() {
     });
 }
 
-/// Tries to clear the local [`Collector`] and the chain.
-unsafe fn clear_local_collector() {
-    LOCAL_COLLECTOR.with(|local_collector| {
-        let collector_ptr = local_collector.load(Relaxed);
-        if !collector_ptr.is_null() {
-            (*collector_ptr).state.fetch_or(Collector::INVALID, Release);
-        }
-
-        let mut temp_collector = Collector::default();
-        temp_collector.state.store(Collector::INACTIVE, Relaxed);
-        local_collector.store(addr_of_mut!(temp_collector), Release);
-        if !Collector::clear_chain() {
-            mark_scan_enforced();
-        }
-
-        Collector::clear_for_drop(addr_of_mut!(temp_collector));
-        local_collector.store(ptr::null_mut(), Release);
-    });
-}
-
 thread_local! {
-    static COLLECTOR_ANCHOR: CollectorAnchor = const { CollectorAnchor };
     static LOCAL_COLLECTOR: AtomicPtr<Collector> = AtomicPtr::default();
+    static COLLECTOR_ANCHOR: CollectorAnchor = const { CollectorAnchor };
 }
 
 /// The global and default [`CollectorRoot`].
