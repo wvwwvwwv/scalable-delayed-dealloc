@@ -268,21 +268,20 @@ impl Collector {
 
     /// Clears all the garbage instances for dropping the [`Collector`].
     unsafe fn clear_for_drop(collector_ptr: *mut Collector) {
-        for mut link in [
-            (*collector_ptr).previous_instance_link.take(),
-            (*collector_ptr).current_instance_link.take(),
-            (*collector_ptr).next_instance_link.take(),
-        ] {
-            while let Some(instance_ptr) = link.take() {
-                link = (*instance_ptr.as_ptr()).next_ptr();
-                drop(Box::from_raw(instance_ptr.as_ptr()));
+        loop {
+            let garbage_containers = [
+                (*collector_ptr).previous_instance_link.take(),
+                (*collector_ptr).current_instance_link.take(),
+                (*collector_ptr).next_instance_link.take(),
+            ];
+            if !garbage_containers.iter().any(Option::is_some) {
+                break;
             }
-        }
-        while let Some(link) = (*collector_ptr).current_instance_link.take() {
-            let mut current = Some(link);
-            while let Some(instance_ptr) = current.take() {
-                current = (*instance_ptr.as_ptr()).next_ptr();
-                drop(Box::from_raw(instance_ptr.as_ptr()));
+            for mut link in garbage_containers {
+                while let Some(instance_ptr) = link {
+                    link = (*instance_ptr.as_ptr()).next_ptr();
+                    drop(Box::from_raw(instance_ptr.as_ptr()));
+                }
             }
         }
     }

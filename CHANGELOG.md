@@ -1,8 +1,8 @@
 # Changelog
 
-3.0.6
+3.0.7
 
-* Fix a potential use-after-free issue when thread-local storage is dropped.
+* Fix a use-after-free issue when thread-local storage is dropped.
 
 3.0.5
 
