@@ -1,5 +1,9 @@
 # Changelog
 
+3.0.8
+
+* Minor `const` optimization.
+
 3.0.7
 
 * Fix a use-after-free issue when thread-local storage is dropped.

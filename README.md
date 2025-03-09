@@ -90,6 +90,6 @@ Retired instances are stored in intrusive queues in thread-local storage, and th
 
 ## Performance
 
-The average time taken to enter and exit a protected region: 2.4 nanoseconds on Apple M2 Max.
+The average time taken to enter and exit a protected region: 2 nanoseconds on Apple M2 Max.
 
 ## [Changelog](https://github.com/wvwwvwwv/scalable-delayed-dealloc/blob/main/CHANGELOG.md)

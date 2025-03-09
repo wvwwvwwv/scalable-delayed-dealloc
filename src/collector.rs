@@ -500,7 +500,7 @@ fn mark_scan_enforced() {
 }
 
 thread_local! {
-    static LOCAL_COLLECTOR: AtomicPtr<Collector> = AtomicPtr::default();
+    static LOCAL_COLLECTOR: AtomicPtr<Collector> = const { AtomicPtr::new(ptr::null_mut()) };
     static COLLECTOR_ANCHOR: CollectorAnchor = const { CollectorAnchor };
 }
 
