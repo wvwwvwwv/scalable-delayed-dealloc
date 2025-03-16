@@ -1,9 +1,13 @@
 use super::maybe_std::AtomicPtr;
 use super::ref_counted::RefCounted;
 use super::{Guard, Ptr, Shared, Tag};
+#[cfg(feature = "loom")]
+use loom::sync::atomic::AtomicPtr as AtomicPtrType;
 use std::mem::forget;
 use std::panic::UnwindSafe;
 use std::ptr::{null, null_mut, NonNull};
+#[cfg(not(feature = "loom"))]
+use std::sync::atomic::AtomicPtr as AtomicPtrType;
 use std::sync::atomic::Ordering::{self, Acquire, Relaxed};
 
 /// [`AtomicShared`] owns the underlying instance, and allows users to perform atomic operations
@@ -51,26 +55,12 @@ impl<T> AtomicShared<T> {
     /// let shared: Shared<usize> = Shared::new(10);
     /// let atomic_shared: AtomicShared<usize> = AtomicShared::from(shared);
     /// ```
-    #[cfg(not(feature = "loom"))]
     #[inline]
     #[must_use]
     pub const fn from(shared: Shared<T>) -> Self {
         let ptr = shared.underlying_ptr();
         forget(shared);
-        let instance_ptr: std::sync::atomic::AtomicPtr<RefCounted<T>> =
-            AtomicPtr::new(ptr.cast_mut());
-        Self { instance_ptr }
-    }
-
-    /// Creates a new [`AtomicShared`] from a [`Shared`] of `T`.
-    #[cfg(feature = "loom")]
-    #[inline]
-    #[must_use]
-    pub fn from(shared: Shared<T>) -> Self {
-        let ptr = shared.underlying_ptr();
-        forget(shared);
-        let instance_ptr: loom::sync::atomic::AtomicPtr<RefCounted<T>> =
-            AtomicPtr::new(ptr.cast_mut());
+        let instance_ptr: AtomicPtrType<RefCounted<T>> = AtomicPtr::new(ptr.cast_mut());
         Self { instance_ptr }
     }
 
@@ -83,20 +73,10 @@ impl<T> AtomicShared<T> {
     ///
     /// let atomic_shared: AtomicShared<usize> = AtomicShared::null();
     /// ```
-    #[cfg(not(feature = "loom"))]
     #[inline]
     #[must_use]
     pub const fn null() -> Self {
-        let instance_ptr: std::sync::atomic::AtomicPtr<RefCounted<T>> = AtomicPtr::new(null_mut());
-        Self { instance_ptr }
-    }
-
-    /// Creates a null [`AtomicShared`].
-    #[cfg(feature = "loom")]
-    #[inline]
-    #[must_use]
-    pub fn null() -> Self {
-        let instance_ptr: loom::sync::atomic::AtomicPtr<RefCounted<T>> = AtomicPtr::new(null_mut());
+        let instance_ptr: AtomicPtrType<RefCounted<T>> = AtomicPtr::new(null_mut());
         Self { instance_ptr }
     }
 
@@ -164,10 +144,12 @@ impl<T> AtomicShared<T> {
             new.1,
         )
         .cast_mut();
+
         let prev = self.instance_ptr.swap(desired, order);
         let tag = Tag::into_tag(prev);
         let prev_ptr = Tag::unset_tag(prev).cast_mut();
         forget(new);
+
         (NonNull::new(prev_ptr).map(Shared::from), tag)
     }
 
@@ -212,11 +194,7 @@ impl<T> AtomicShared<T> {
     ) -> bool {
         self.instance_ptr
             .fetch_update(set_order, fetch_order, |ptr| {
-                if condition(Ptr::from(ptr)) {
-                    Some(Tag::update_tag(ptr, tag).cast_mut())
-                } else {
-                    None
-                }
+                condition(Ptr::from(ptr)).then_some(Tag::update_tag(ptr, tag).cast_mut())
             })
             .is_ok()
     }
@@ -273,6 +251,7 @@ impl<T> AtomicShared<T> {
             new.1,
         )
         .cast_mut();
+
         match self.instance_ptr.compare_exchange(
             current.as_underlying_ptr().cast_mut(),
             desired,
@@ -336,6 +315,7 @@ impl<T> AtomicShared<T> {
             new.1,
         )
         .cast_mut();
+
         match self.instance_ptr.compare_exchange_weak(
             current.as_underlying_ptr().cast_mut(),
             desired,
@@ -398,6 +378,7 @@ impl<T> AtomicShared<T> {
             if unsafe { (*ptr).try_add_ref(Acquire) } {
                 return NonNull::new(ptr.cast_mut()).map(Shared::from);
             }
+
             ptr = Tag::unset_tag(self.instance_ptr.load(order));
         }
         None
@@ -424,6 +405,7 @@ impl<T> AtomicShared<T> {
         if let Some(underlying_ptr) = NonNull::new(Tag::unset_tag(ptr).cast_mut()) {
             return Some(Shared::from(underlying_ptr));
         }
+
         None
     }
 }
@@ -445,10 +427,12 @@ impl<T> Default for AtomicShared<T> {
 impl<T> Drop for AtomicShared<T> {
     #[inline]
     fn drop(&mut self) {
-        if let Some(ptr) = NonNull::new(Tag::unset_tag(self.instance_ptr.load(Relaxed)).cast_mut())
-        {
-            drop(Shared::from(ptr));
-        }
+        let Some(ptr) = NonNull::new(Tag::unset_tag(self.instance_ptr.load(Relaxed)).cast_mut())
+        else {
+            return;
+        };
+
+        drop(Shared::from(ptr));
     }
 }
 

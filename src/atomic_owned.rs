@@ -1,9 +1,13 @@
 use super::maybe_std::AtomicPtr;
 use super::ref_counted::RefCounted;
 use super::{Guard, Owned, Ptr, Tag};
+#[cfg(feature = "loom")]
+use loom::sync::atomic::AtomicPtr as AtomicPtrType;
 use std::mem::forget;
 use std::panic::UnwindSafe;
 use std::ptr::{null, null_mut, NonNull};
+#[cfg(not(feature = "loom"))]
+use std::sync::atomic::AtomicPtr as AtomicPtrType;
 use std::sync::atomic::Ordering::{self, Relaxed};
 
 /// [`AtomicOwned`] owns the underlying instance, and allows users to perform atomic operations
@@ -51,26 +55,12 @@ impl<T> AtomicOwned<T> {
     /// let owned: Owned<usize> = Owned::new(10);
     /// let atomic_owned: AtomicOwned<usize> = AtomicOwned::from(owned);
     /// ```
-    #[cfg(not(feature = "loom"))]
     #[inline]
     #[must_use]
     pub const fn from(owned: Owned<T>) -> Self {
         let ptr = owned.underlying_ptr();
         forget(owned);
-        let instance_ptr: std::sync::atomic::AtomicPtr<RefCounted<T>> =
-            AtomicPtr::new(ptr.cast_mut());
-        Self { instance_ptr }
-    }
-
-    /// Creates a new [`AtomicOwned`] from an [`Owned`] of `T`.
-    #[cfg(feature = "loom")]
-    #[inline]
-    #[must_use]
-    pub fn from(owned: Owned<T>) -> Self {
-        let ptr = owned.underlying_ptr();
-        forget(owned);
-        let instance_ptr: loom::sync::atomic::AtomicPtr<RefCounted<T>> =
-            AtomicPtr::new(ptr.cast_mut());
+        let instance_ptr: AtomicPtrType<RefCounted<T>> = AtomicPtr::new(ptr.cast_mut());
         Self { instance_ptr }
     }
 
@@ -83,20 +73,10 @@ impl<T> AtomicOwned<T> {
     ///
     /// let atomic_owned: AtomicOwned<usize> = AtomicOwned::null();
     /// ```
-    #[cfg(not(feature = "loom"))]
     #[inline]
     #[must_use]
     pub const fn null() -> Self {
-        let instance_ptr: std::sync::atomic::AtomicPtr<RefCounted<T>> = AtomicPtr::new(null_mut());
-        Self { instance_ptr }
-    }
-
-    /// Creates a null [`AtomicOwned`].
-    #[cfg(feature = "loom")]
-    #[inline]
-    #[must_use]
-    pub fn null() -> Self {
-        let instance_ptr: loom::sync::atomic::AtomicPtr<RefCounted<T>> = AtomicPtr::new(null_mut());
+        let instance_ptr: AtomicPtrType<RefCounted<T>> = AtomicPtr::new(null_mut());
         Self { instance_ptr }
     }
 
@@ -164,10 +144,12 @@ impl<T> AtomicOwned<T> {
             new.1,
         )
         .cast_mut();
+
         let prev = self.instance_ptr.swap(desired, order);
         let tag = Tag::into_tag(prev);
         let prev_ptr = Tag::unset_tag(prev).cast_mut();
         forget(new);
+
         (NonNull::new(prev_ptr).map(Owned::from), tag)
     }
 
@@ -212,11 +194,7 @@ impl<T> AtomicOwned<T> {
     ) -> bool {
         self.instance_ptr
             .fetch_update(set_order, fetch_order, |ptr| {
-                if condition(Ptr::from(ptr)) {
-                    Some(Tag::update_tag(ptr, tag).cast_mut())
-                } else {
-                    None
-                }
+                condition(Ptr::from(ptr)).then_some(Tag::update_tag(ptr, tag).cast_mut())
             })
             .is_ok()
     }
@@ -269,6 +247,7 @@ impl<T> AtomicOwned<T> {
             new.1,
         )
         .cast_mut();
+
         match self.instance_ptr.compare_exchange(
             current.as_underlying_ptr().cast_mut(),
             desired,
@@ -332,6 +311,7 @@ impl<T> AtomicOwned<T> {
             new.1,
         )
         .cast_mut();
+
         match self.instance_ptr.compare_exchange_weak(
             current.as_underlying_ptr().cast_mut(),
             desired,
@@ -365,10 +345,7 @@ impl<T> AtomicOwned<T> {
     #[must_use]
     pub fn into_owned(self, order: Ordering) -> Option<Owned<T>> {
         let ptr = self.instance_ptr.swap(null_mut(), order);
-        if let Some(underlying_ptr) = NonNull::new(Tag::unset_tag(ptr).cast_mut()) {
-            return Some(Owned::from(underlying_ptr));
-        }
-        None
+        NonNull::new(Tag::unset_tag(ptr).cast_mut()).map(Owned::from)
     }
 }
 
@@ -382,10 +359,12 @@ impl<T> Default for AtomicOwned<T> {
 impl<T> Drop for AtomicOwned<T> {
     #[inline]
     fn drop(&mut self) {
-        if let Some(ptr) = NonNull::new(Tag::unset_tag(self.instance_ptr.load(Relaxed)).cast_mut())
-        {
-            drop(Owned::from(ptr));
-        }
+        let Some(ptr) = NonNull::new(Tag::unset_tag(self.instance_ptr.load(Relaxed)).cast_mut())
+        else {
+            return;
+        };
+
+        drop(Owned::from(ptr));
     }
 }
 

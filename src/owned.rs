@@ -4,6 +4,7 @@ use std::mem::forget;
 use std::ops::Deref;
 use std::panic::UnwindSafe;
 use std::ptr::{addr_of, NonNull};
+use std::sync::atomic::Ordering::Relaxed;
 
 /// [`Owned`] uniquely owns an instance.
 ///
@@ -180,14 +181,7 @@ impl<T> Owned<T> {
     /// Creates a new [`Owned`] from the given pointer.
     #[inline]
     pub(super) fn from(ptr: NonNull<RefCounted<T>>) -> Self {
-        debug_assert_eq!(
-            unsafe {
-                (*ptr.as_ptr())
-                    .ref_cnt()
-                    .load(std::sync::atomic::Ordering::Relaxed)
-            },
-            0
-        );
+        debug_assert_eq!(unsafe { (*ptr.as_ptr()).ref_cnt().load(Relaxed) }, 0);
         Self {
             instance_ptr: ptr.as_ptr(),
         }

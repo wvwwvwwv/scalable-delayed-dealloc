@@ -53,6 +53,7 @@ impl Collectible for Link {
             self.data.0.load(Relaxed) as *mut usize,
             self.data.1.load(Relaxed),
         );
+
         unsafe { std::mem::transmute(fat_ptr) }
     }
 
@@ -63,6 +64,7 @@ impl Collectible for Link {
             || (ptr::null_mut(), ptr::null_mut()),
             |p| unsafe { std::mem::transmute(p) },
         );
+
         self.data.0.store(data.0 as usize, Relaxed);
         self.data.1.store(data.1, Relaxed);
     }
@@ -94,8 +96,10 @@ impl<F: 'static + FnOnce()> Collectible for DeferredClosure<F> {
 impl<F: 'static + FnOnce()> Drop for DeferredClosure<F> {
     #[inline]
     fn drop(&mut self) {
-        if let Some(f) = self.f.take() {
-            f();
-        }
+        let Some(f) = self.f.take() else {
+            return;
+        };
+
+        f();
     }
 }

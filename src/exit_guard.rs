@@ -21,9 +21,11 @@ impl<T, F: FnOnce(T)> ExitGuard<T, F> {
 impl<T, F: FnOnce(T)> Drop for ExitGuard<T, F> {
     #[inline]
     fn drop(&mut self) {
-        if let Some((c, f)) = self.drop_callback.take() {
-            f(c);
-        }
+        let Some((c, f)) = self.drop_callback.take() else {
+            return;
+        };
+
+        f(c);
     }
 }
 

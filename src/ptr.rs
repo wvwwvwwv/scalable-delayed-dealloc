@@ -44,7 +44,7 @@ impl<'g, T> Ptr<'g, T> {
     #[inline]
     #[must_use]
     pub fn is_null(&self) -> bool {
-        Tag::unset_tag(self.instance_ptr).is_null()
+        self.instance_ptr as usize >> 3 == 0
     }
 
     /// Tries to create a reference to the underlying instance.
@@ -64,10 +64,7 @@ impl<'g, T> Ptr<'g, T> {
     #[must_use]
     pub fn as_ref(&self) -> Option<&'g T> {
         let ptr = Tag::unset_tag(self.instance_ptr);
-        if ptr.is_null() {
-            return None;
-        }
-        unsafe { Some(&*ptr) }
+        (!ptr.is_null()).then_some(unsafe { &*ptr })
     }
 
     /// Provides a raw pointer to the instance.
@@ -207,13 +204,10 @@ impl<'g, T> Ptr<'g, T> {
     #[must_use]
     pub fn get_shared(self) -> Option<Shared<T>> {
         unsafe {
-            if let Some(ptr) = NonNull::new(Tag::unset_tag(self.instance_ptr).cast_mut()) {
-                if (*ptr.as_ptr()).try_add_ref(Relaxed) {
-                    return Some(Shared::from(ptr));
-                }
-            }
+            let ptr = NonNull::new(Tag::unset_tag(self.instance_ptr).cast_mut())?;
+            let condition = (*ptr.as_ptr()).try_add_ref(Relaxed);
+            condition.then(|| Shared::from(ptr))
         }
-        None
     }
 
     /// Creates a new [`Ptr`] from a raw pointer.

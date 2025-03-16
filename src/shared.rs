@@ -128,7 +128,7 @@ impl<T> Shared<T> {
         self.instance_ptr
             .cast_mut()
             .as_mut()
-            .and_then(|r| r.get_mut_shared())
+            .and_then(RefCounted::get_mut_shared)
     }
 
     /// Provides a raw pointer to the instance.
@@ -280,11 +280,7 @@ impl<'g, T> TryFrom<Ptr<'g, T>> for Shared<T> {
 
     #[inline]
     fn try_from(ptr: Ptr<'g, T>) -> Result<Self, Self::Error> {
-        if let Some(shared) = ptr.get_shared() {
-            Ok(shared)
-        } else {
-            Err(ptr)
-        }
+        ptr.get_shared().ok_or(ptr)
     }
 }
 
