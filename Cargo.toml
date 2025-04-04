@@ -2,7 +2,7 @@
 name = "sdd"
 description = "Scalable lock-free delayed memory reclaimer"
 documentation = "https://docs.rs/sdd"
-version = "3.0.8"
+version = "4.0.0"
 authors = ["wvwwvwwv <wvwwvwwv@me.com>"]
 edition = "2021"
 rust-version = "1.65.0"
@@ -14,9 +14,6 @@ keywords = ["concurrent", "epoch", "garbage", "lock-free", "memory"]
 
 [workspace]
 members = [".", "examples"]
-
-[profile.release]
-lto = true
 
 [dependencies.loom]
 version = "0.7.2"

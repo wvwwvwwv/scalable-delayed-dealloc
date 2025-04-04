@@ -1,9 +1,9 @@
-use super::collectible::DeferredClosure;
-use super::collector::Collector;
-use super::Epoch;
+use crate::collectible::DeferredClosure;
+use crate::collector::Collector;
+use crate::Epoch;
 use std::panic::UnwindSafe;
 
-/// [`Guard`] allows the user to read [`AtomicShared`](super::AtomicShared) and keeps the
+/// [`Guard`] allows the user to read [`AtomicShared`](crate::AtomicShared) and keeps the
 /// underlying instance pinned to the thread.
 ///
 /// [`Guard`] internally prevents the global epoch value from passing through the value
@@ -35,6 +35,7 @@ impl Guard {
         unsafe {
             Collector::new_guard(collector_ptr, true);
         }
+
         Self { collector_ptr }
     }
 

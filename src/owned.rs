@@ -1,5 +1,5 @@
-use super::ref_counted::RefCounted;
-use super::{Guard, Ptr};
+use crate::ref_counted::RefCounted;
+use crate::{Guard, Ptr};
 use std::mem::forget;
 use std::ops::Deref;
 use std::panic::UnwindSafe;
@@ -77,7 +77,7 @@ impl<T> Owned<T> {
     /// ```
     #[inline]
     #[must_use]
-    pub fn get_guarded_ptr<'g>(&self, _guard: &'g Guard) -> Ptr<'g, T> {
+    pub fn get_guarded_ptr<'g>(&self, _: &'g Guard) -> Ptr<'g, T> {
         Ptr::from(self.instance_ptr)
     }
 
@@ -97,8 +97,11 @@ impl<T> Owned<T> {
     /// ```
     #[inline]
     #[must_use]
-    pub fn get_guarded_ref<'g>(&self, _guard: &'g Guard) -> &'g T {
-        unsafe { std::mem::transmute::<&T, _>(&**self) }
+    pub fn get_guarded_ref<'g>(&self, _: &'g Guard) -> &'g T {
+        #[allow(clippy::missing_transmute_annotations)]
+        unsafe {
+            std::mem::transmute(&**self)
+        }
     }
 
     /// Returns a mutable reference to the instance.
@@ -182,6 +185,7 @@ impl<T> Owned<T> {
     #[inline]
     pub(super) fn from(ptr: NonNull<RefCounted<T>>) -> Self {
         debug_assert_eq!(unsafe { (*ptr.as_ptr()).ref_cnt().load(Relaxed) }, 0);
+
         Self {
             instance_ptr: ptr.as_ptr(),
         }

@@ -1,5 +1,5 @@
-use super::collectible::{Collectible, Link};
-use super::collector::Collector;
+use crate::collectible::{Collectible, Link};
+use crate::collector::Collector;
 use std::mem::offset_of;
 use std::ops::Deref;
 use std::ptr::NonNull;
@@ -21,6 +21,7 @@ impl<T> RefCounted<T> {
             instance,
             next_or_refcnt: Link::new_shared(),
         });
+
         Box::into_raw(boxed)
     }
 
@@ -33,6 +34,7 @@ impl<T> RefCounted<T> {
             instance,
             next_or_refcnt: Link::new_unique(),
         });
+
         Box::into_raw(boxed)
     }
 
@@ -83,6 +85,7 @@ impl<T> RefCounted<T> {
         ) {
             current = updated;
         }
+
         current == 1
     }
 
@@ -90,8 +93,9 @@ impl<T> RefCounted<T> {
     #[inline]
     pub(super) fn inst_ptr(self_ptr: *const Self) -> *const T {
         let offset = offset_of!(Self, instance);
+        #[allow(clippy::cast_lossless)]
         let is_valid = !self_ptr.is_null() as usize;
-        unsafe { self_ptr.byte_add(offset * is_valid) as *const T }
+        unsafe { self_ptr.cast::<u8>().add(offset * is_valid).cast() }
     }
 
     /// Returns a reference to its reference count.
@@ -103,11 +107,8 @@ impl<T> RefCounted<T> {
     /// Passes a pointer to [`RefCounted`] to the garbage collector.
     #[inline]
     pub(super) fn pass_to_collector(ptr: *mut Self) {
-        let dyn_mut_ptr: *mut dyn Collectible = ptr;
-        #[allow(clippy::transmute_ptr_to_ptr)]
-        let dyn_mut_ptr: *mut dyn Collectible = unsafe { std::mem::transmute(dyn_mut_ptr) };
         unsafe {
-            Collector::collect(Collector::current(), dyn_mut_ptr);
+            Collector::collect(Collector::current(), ptr as *mut dyn Collectible);
         }
     }
 }

@@ -1,5 +1,5 @@
-use super::ref_counted::RefCounted;
-use super::{Shared, Tag};
+use crate::ref_counted::RefCounted;
+use crate::{Shared, Tag};
 use std::marker::PhantomData;
 use std::panic::UnwindSafe;
 use std::sync::atomic::Ordering::Relaxed;
@@ -44,7 +44,7 @@ impl<'g, T> Ptr<'g, T> {
     #[inline]
     #[must_use]
     pub fn is_null(&self) -> bool {
-        self.instance_ptr as usize >> 3 == 0
+        Tag::unset_tag(self.instance_ptr).is_null()
     }
 
     /// Tries to create a reference to the underlying instance.
@@ -246,6 +246,7 @@ impl<T> Eq for Ptr<'_, T> {}
 
 impl<T> PartialEq for Ptr<'_, T> {
     #[inline]
+    #[allow(clippy::ptr_eq)]
     fn eq(&self, other: &Self) -> bool {
         self.instance_ptr == other.instance_ptr
     }
