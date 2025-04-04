@@ -15,9 +15,6 @@ keywords = ["concurrent", "epoch", "garbage", "lock-free", "memory"]
 [workspace]
 members = [".", "examples"]
 
-[profile.release]
-lto = true
-
 [dependencies.loom]
 version = "0.7.2"
 optional = true
