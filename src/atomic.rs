@@ -12,10 +12,12 @@ pub(super) mod ownership {
     pub struct Owned;
 
     impl Type for Owned {
+        #[inline]
         fn generate_refcounted<T>(instance: T) -> *const RefCounted<T> {
             RefCounted::new_unique(instance)
         }
 
+        #[inline]
         fn can_drop<T>(_: *const RefCounted<T>) -> bool {
             true
         }
@@ -24,10 +26,12 @@ pub(super) mod ownership {
     pub struct Shared;
 
     impl Type for Shared {
+        #[inline]
         fn generate_refcounted<T>(instance: T) -> *const RefCounted<T> {
             RefCounted::new_shared(instance)
         }
 
+        #[inline]
         fn can_drop<T>(ptr: *const RefCounted<T>) -> bool {
             unsafe { &*ptr }.drop_ref()
         }
