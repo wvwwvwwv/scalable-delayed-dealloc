@@ -696,11 +696,8 @@ impl<T, O: ownership::Type> Drop for Atomic<T, O> {
     #[inline]
     fn drop(&mut self) {
         let ptr = Tag::unset_tag(self.0.load(Ordering::Relaxed));
-        if ptr.is_null() {
-            return;
-        }
 
-        if O::can_drop(ptr) {
+        if !ptr.is_null() && O::can_drop(ptr) {
             RefCounted::pass_to_collector(ptr.cast_mut());
         }
     }
