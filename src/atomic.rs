@@ -5,28 +5,31 @@ pub(super) mod ownership {
     use crate::ref_counted::RefCounted;
 
     pub(super) trait Type {
-        const IS_OWNED: bool;
-
         fn generate_refcounted<T>(instance: T) -> *const RefCounted<T>;
+        fn can_drop<T>(ptr: *const RefCounted<T>) -> bool;
     }
 
     pub struct Owned;
 
     impl Type for Owned {
-        const IS_OWNED: bool = true;
-
         fn generate_refcounted<T>(instance: T) -> *const RefCounted<T> {
             RefCounted::new_unique(instance)
+        }
+
+        fn can_drop<T>(_: *const RefCounted<T>) -> bool {
+            true
         }
     }
 
     pub struct Shared;
 
     impl Type for Shared {
-        const IS_OWNED: bool = false;
-
         fn generate_refcounted<T>(instance: T) -> *const RefCounted<T> {
             RefCounted::new_shared(instance)
+        }
+
+        fn can_drop<T>(ptr: *const RefCounted<T>) -> bool {
+            unsafe { &*ptr }.drop_ref()
         }
     }
 }
@@ -697,7 +700,7 @@ impl<T, O: ownership::Type> Drop for Atomic<T, O> {
             return;
         }
 
-        if O::IS_OWNED || unsafe { (*ptr).drop_ref() } {
+        if O::can_drop(ptr) {
             RefCounted::pass_to_collector(ptr.cast_mut());
         }
     }
