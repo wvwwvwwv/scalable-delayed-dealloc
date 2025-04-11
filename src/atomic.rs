@@ -92,7 +92,7 @@ impl<T, O: ownership::Type> Atomic<T, O> {
     /// ```
     #[inline]
     #[must_use]
-    pub const fn null() -> Self {
+    pub fn null() -> Self {
         Self(AtomicPtr::new(ptr::null_mut()), PhantomData)
     }
 
@@ -215,7 +215,7 @@ impl<T> AtomicOwned<T> {
     /// ```
     #[inline]
     #[must_use]
-    pub const fn from(r#type: Owned<T>) -> Self {
+    pub fn from(r#type: Owned<T>) -> Self {
         let ptr = r#type.underlying_ptr();
         mem::forget(r#type);
 
@@ -431,7 +431,7 @@ impl<T> AtomicShared<T> {
     /// ```
     #[inline]
     #[must_use]
-    pub const fn from(r#type: Shared<T>) -> Self {
+    pub fn from(r#type: Shared<T>) -> Self {
         let ptr = r#type.underlying_ptr();
         mem::forget(r#type);
 
