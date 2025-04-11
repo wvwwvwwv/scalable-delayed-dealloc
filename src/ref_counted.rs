@@ -1,7 +1,8 @@
-use super::collectible::{Collectible, Link};
-use super::collector::Collector;
+use crate::collectible::{Collectible, Link};
+use crate::collector::Collector;
+use std::mem::offset_of;
 use std::ops::Deref;
-use std::ptr::{self, addr_of, NonNull};
+use std::ptr::NonNull;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::{self, Relaxed};
 
@@ -20,6 +21,7 @@ impl<T> RefCounted<T> {
             instance,
             next_or_refcnt: Link::new_shared(),
         });
+
         Box::into_raw(boxed)
     }
 
@@ -32,6 +34,7 @@ impl<T> RefCounted<T> {
             instance,
             next_or_refcnt: Link::new_unique(),
         });
+
         Box::into_raw(boxed)
     }
 
@@ -42,28 +45,15 @@ impl<T> RefCounted<T> {
     #[inline]
     pub(super) fn try_add_ref(&self, order: Ordering) -> bool {
         self.ref_cnt()
-            .fetch_update(
-                order,
-                order,
-                |r| {
-                    if r % 2 == 1 {
-                        Some(r + 2)
-                    } else {
-                        None
-                    }
-                },
-            )
+            .fetch_update(order, order, |r| (r & 1 == 1).then_some(r + 2))
             .is_ok()
     }
 
     /// Returns a mutable reference to the instance if the number of owners is `1`.
     #[inline]
     pub(super) fn get_mut_shared(&mut self) -> Option<&mut T> {
-        if self.ref_cnt().load(Relaxed) == 1 {
-            Some(&mut self.instance)
-        } else {
-            None
-        }
+        let value = self.ref_cnt().load(Relaxed);
+        (value == 1).then_some(&mut self.instance)
     }
 
     /// Returns a mutable reference to the instance if it is uniquely owned.
@@ -76,20 +66,7 @@ impl<T> RefCounted<T> {
     /// Adds a strong reference to the underlying instance.
     #[inline]
     pub(super) fn add_ref(&self) {
-        let mut current = self.ref_cnt().load(Relaxed);
-        loop {
-            debug_assert_eq!(current % 2, 1);
-            debug_assert!(current <= usize::MAX - 2, "reference count overflow");
-            match self
-                .ref_cnt()
-                .compare_exchange_weak(current, current + 2, Relaxed, Relaxed)
-            {
-                Ok(_) => break,
-                Err(actual) => {
-                    current = actual;
-                }
-            }
-        }
+        self.ref_cnt().fetch_add(2, Relaxed);
     }
 
     /// Drops a strong reference to the underlying instance.
@@ -100,30 +77,25 @@ impl<T> RefCounted<T> {
         // It does not have to be a load-acquire as everything's synchronized via the global
         // epoch.
         let mut current = self.ref_cnt().load(Relaxed);
-        loop {
-            debug_assert_ne!(current, 0);
-            let new = if current <= 1 { 0 } else { current - 2 };
-            match self
-                .ref_cnt()
-                .compare_exchange_weak(current, new, Relaxed, Relaxed)
-            {
-                Ok(_) => break,
-                Err(actual) => {
-                    current = actual;
-                }
-            }
+        while let Err(updated) = self.ref_cnt().compare_exchange_weak(
+            current,
+            current.saturating_sub(2),
+            Relaxed,
+            Relaxed,
+        ) {
+            current = updated;
         }
+
         current == 1
     }
 
     /// Returns a pointer to the instance.
     #[inline]
     pub(super) fn inst_ptr(self_ptr: *const Self) -> *const T {
-        if self_ptr.is_null() {
-            ptr::null()
-        } else {
-            unsafe { addr_of!((*self_ptr).instance) }
-        }
+        let offset = offset_of!(Self, instance);
+        #[allow(clippy::cast_lossless)]
+        let is_valid = !self_ptr.is_null() as usize;
+        unsafe { self_ptr.cast::<u8>().add(offset * is_valid).cast() }
     }
 
     /// Returns a reference to its reference count.
@@ -135,11 +107,8 @@ impl<T> RefCounted<T> {
     /// Passes a pointer to [`RefCounted`] to the garbage collector.
     #[inline]
     pub(super) fn pass_to_collector(ptr: *mut Self) {
-        let dyn_mut_ptr: *mut dyn Collectible = ptr;
-        #[allow(clippy::transmute_ptr_to_ptr)]
-        let dyn_mut_ptr: *mut dyn Collectible = unsafe { std::mem::transmute(dyn_mut_ptr) };
         unsafe {
-            Collector::collect(Collector::current(), dyn_mut_ptr);
+            Collector::collect(Collector::current(), ptr as *mut dyn Collectible);
         }
     }
 }

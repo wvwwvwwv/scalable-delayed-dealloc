@@ -1,5 +1,5 @@
-use super::ref_counted::RefCounted;
-use super::{Guard, Ptr};
+use crate::ref_counted::RefCounted;
+use crate::{Guard, Ptr};
 use std::mem::forget;
 use std::ops::Deref;
 use std::panic::UnwindSafe;
@@ -80,7 +80,7 @@ impl<T> Shared<T> {
     /// ```
     #[inline]
     #[must_use]
-    pub fn get_guarded_ptr<'g>(&self, _guard: &'g Guard) -> Ptr<'g, T> {
+    pub fn get_guarded_ptr<'g>(&self, _: &'g Guard) -> Ptr<'g, T> {
         Ptr::from(self.instance_ptr)
     }
 
@@ -100,8 +100,11 @@ impl<T> Shared<T> {
     /// ```
     #[inline]
     #[must_use]
-    pub fn get_guarded_ref<'g>(&self, _guard: &'g Guard) -> &'g T {
-        unsafe { std::mem::transmute::<&T, _>(&**self) }
+    pub fn get_guarded_ref<'g>(&self, _: &'g Guard) -> &'g T {
+        #[allow(clippy::missing_transmute_annotations)]
+        unsafe {
+            std::mem::transmute(&**self)
+        }
     }
 
     /// Returns a mutable reference to the instance if the [`Shared`] is holding the only strong
@@ -128,7 +131,7 @@ impl<T> Shared<T> {
         self.instance_ptr
             .cast_mut()
             .as_mut()
-            .and_then(|r| r.get_mut_shared())
+            .and_then(RefCounted::get_mut_shared)
     }
 
     /// Provides a raw pointer to the instance.
@@ -169,12 +172,10 @@ impl<T> Shared<T> {
     #[inline]
     #[must_use]
     pub fn release(self) -> bool {
-        let released = if unsafe { (*self.instance_ptr).drop_ref() } {
-            RefCounted::pass_to_collector(self.instance_ptr.cast_mut());
-            true
-        } else {
-            false
-        };
+        let released = unsafe { (*self.instance_ptr).drop_ref() }
+            .then(|| RefCounted::pass_to_collector(self.instance_ptr.cast_mut()))
+            .is_some();
+
         forget(self);
         released
     }
@@ -215,12 +216,10 @@ impl<T> Shared<T> {
     #[inline]
     #[must_use]
     pub unsafe fn drop_in_place(self) -> bool {
-        let dropped = if (*self.instance_ptr).drop_ref() {
-            drop(Box::from_raw(self.instance_ptr.cast_mut()));
-            true
-        } else {
-            false
-        };
+        let dropped = unsafe { (*self.instance_ptr).drop_ref() }
+            .then(|| drop(Box::from_raw(self.instance_ptr.cast_mut())))
+            .is_some();
+
         forget(self);
         dropped
     }
@@ -250,7 +249,8 @@ impl<T> AsRef<T> for Shared<T> {
 impl<T> Clone for Shared<T> {
     #[inline]
     fn clone(&self) -> Self {
-        unsafe { (*self.instance_ptr).add_ref() }
+        unsafe { (*self.instance_ptr).add_ref() };
+
         Self {
             instance_ptr: self.instance_ptr,
         }
@@ -280,11 +280,7 @@ impl<'g, T> TryFrom<Ptr<'g, T>> for Shared<T> {
 
     #[inline]
     fn try_from(ptr: Ptr<'g, T>) -> Result<Self, Self::Error> {
-        if let Some(shared) = ptr.get_shared() {
-            Ok(shared)
-        } else {
-            Err(ptr)
-        }
+        ptr.get_shared().ok_or(ptr)
     }
 }
 

@@ -1,5 +1,5 @@
-use super::ref_counted::RefCounted;
-use super::{Shared, Tag};
+use crate::ref_counted::RefCounted;
+use crate::{Shared, Tag};
 use std::marker::PhantomData;
 use std::panic::UnwindSafe;
 use std::sync::atomic::Ordering::Relaxed;
@@ -64,10 +64,7 @@ impl<'g, T> Ptr<'g, T> {
     #[must_use]
     pub fn as_ref(&self) -> Option<&'g T> {
         let ptr = Tag::unset_tag(self.instance_ptr);
-        if ptr.is_null() {
-            return None;
-        }
-        unsafe { Some(&*ptr) }
+        (!ptr.is_null()).then_some(unsafe { &*ptr })
     }
 
     /// Provides a raw pointer to the instance.
@@ -207,13 +204,10 @@ impl<'g, T> Ptr<'g, T> {
     #[must_use]
     pub fn get_shared(self) -> Option<Shared<T>> {
         unsafe {
-            if let Some(ptr) = NonNull::new(Tag::unset_tag(self.instance_ptr).cast_mut()) {
-                if (*ptr.as_ptr()).try_add_ref(Relaxed) {
-                    return Some(Shared::from(ptr));
-                }
-            }
+            let ptr = NonNull::new(Tag::unset_tag(self.instance_ptr).cast_mut())?;
+            let condition = (*ptr.as_ptr()).try_add_ref(Relaxed);
+            condition.then(|| Shared::from(ptr))
         }
-        None
     }
 
     /// Creates a new [`Ptr`] from a raw pointer.
@@ -252,6 +246,7 @@ impl<T> Eq for Ptr<'_, T> {}
 
 impl<T> PartialEq for Ptr<'_, T> {
     #[inline]
+    #[allow(clippy::ptr_eq)]
     fn eq(&self, other: &Self) -> bool {
         self.instance_ptr == other.instance_ptr
     }

@@ -15,7 +15,8 @@ pub(super) trait Collectible {
 /// [`Link`] implements [`Collectible`].
 #[derive(Debug, Default)]
 pub struct Link {
-    data: (AtomicUsize, AtomicPtr<usize>),
+    ref_cnt: AtomicUsize,
+    ptr: AtomicPtr<usize>,
 }
 
 /// [`DeferredClosure`] implements [`Collectible`] for a closure to execute it after all the
@@ -29,20 +30,22 @@ impl Link {
     #[inline]
     pub(super) const fn new_shared() -> Self {
         Link {
-            data: (AtomicUsize::new(1), AtomicPtr::new(ptr::null_mut())),
+            ref_cnt: AtomicUsize::new(1),
+            ptr: AtomicPtr::new(ptr::null_mut()),
         }
     }
 
     #[inline]
     pub(super) const fn new_unique() -> Self {
         Link {
-            data: (AtomicUsize::new(0), AtomicPtr::new(ptr::null_mut())),
+            ref_cnt: AtomicUsize::new(0),
+            ptr: AtomicPtr::new(ptr::null_mut()),
         }
     }
 
     #[inline]
     pub(super) const fn ref_cnt(&self) -> &AtomicUsize {
-        &self.data.0
+        &self.ref_cnt
     }
 }
 
@@ -50,21 +53,27 @@ impl Collectible for Link {
     #[inline]
     fn next_ptr(&self) -> Option<NonNull<dyn Collectible>> {
         let fat_ptr: (*mut usize, *mut usize) = (
-            self.data.0.load(Relaxed) as *mut usize,
-            self.data.1.load(Relaxed),
+            self.ref_cnt.load(Relaxed) as *mut usize,
+            self.ptr.load(Relaxed),
         );
-        unsafe { std::mem::transmute(fat_ptr) }
+
+        #[allow(clippy::missing_transmute_annotations)]
+        unsafe {
+            std::mem::transmute(fat_ptr)
+        }
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
     #[inline]
     fn set_next_ptr(&self, next_ptr: Option<NonNull<dyn Collectible>>) {
-        let data: (*mut usize, *mut usize) = next_ptr.map_or_else(
+        let (ref_cnt, ptr): (*mut usize, *mut usize) = next_ptr.map_or_else(
             || (ptr::null_mut(), ptr::null_mut()),
+            #[allow(clippy::missing_transmute_annotations)]
             |p| unsafe { std::mem::transmute(p) },
         );
-        self.data.0.store(data.0 as usize, Relaxed);
-        self.data.1.store(data.1, Relaxed);
+
+        self.ref_cnt.store(ref_cnt as usize, Relaxed);
+        self.ptr.store(ptr, Relaxed);
     }
 }
 
@@ -94,8 +103,10 @@ impl<F: 'static + FnOnce()> Collectible for DeferredClosure<F> {
 impl<F: 'static + FnOnce()> Drop for DeferredClosure<F> {
     #[inline]
     fn drop(&mut self) {
-        if let Some(f) = self.f.take() {
-            f();
-        }
+        let Some(f) = self.f.take() else {
+            return;
+        };
+
+        f();
     }
 }

@@ -1,11 +1,8 @@
 #![deny(missing_docs, warnings, clippy::all, clippy::pedantic)]
 #![doc = include_str!("../README.md")]
 
-mod atomic_owned;
-pub use atomic_owned::AtomicOwned;
-
-mod atomic_shared;
-pub use atomic_shared::AtomicShared;
+mod atomic;
+pub use atomic::{Atomic, AtomicOwned, AtomicShared};
 
 mod guard;
 pub use guard::Guard;
@@ -55,13 +52,10 @@ pub fn suspend() -> bool {
     collector::Collector::pass_garbage()
 }
 
-#[cfg(feature = "loom")]
 mod maybe_std {
+    #[cfg(feature = "loom")]
     pub(crate) use loom::sync::atomic::{fence, AtomicPtr};
-}
-
-#[cfg(not(feature = "loom"))]
-mod maybe_std {
+    #[cfg(not(feature = "loom"))]
     pub(crate) use std::sync::atomic::{fence, AtomicPtr};
 }
 
