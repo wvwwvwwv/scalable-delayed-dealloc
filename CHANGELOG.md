@@ -1,5 +1,9 @@
 # Changelog
 
+3.0.9
+
+* Fix unsound `Sync` implementations of `AtomicShared` and `Shared`; previously, the `Sync` implementation allowed an arbitrary thread to own/drop the contained instance.
+
 3.0.8
 
 * Minor `const` optimization.

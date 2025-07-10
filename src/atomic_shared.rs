@@ -454,6 +454,6 @@ impl<T> Drop for AtomicShared<T> {
 
 unsafe impl<T: Send> Send for AtomicShared<T> {}
 
-unsafe impl<T: Sync> Sync for AtomicShared<T> {}
+unsafe impl<T: Send + Sync> Sync for AtomicShared<T> {}
 
 impl<T: UnwindSafe> UnwindSafe for AtomicShared<T> {}
