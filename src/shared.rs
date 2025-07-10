@@ -290,6 +290,6 @@ impl<'g, T> TryFrom<Ptr<'g, T>> for Shared<T> {
 
 unsafe impl<T: Send> Send for Shared<T> {}
 
-unsafe impl<T: Sync> Sync for Shared<T> {}
+unsafe impl<T: Send + Sync> Sync for Shared<T> {}
 
 impl<T: UnwindSafe> UnwindSafe for Shared<T> {}
