@@ -1,10 +1,11 @@
 /// [`Epoch`] represents the period of time the global epoch value stays the same.
 ///
-/// [`Epoch`] rotates [`u8`] values in a range of `[0..3]` while the crate itself functions
-/// correctly if the range is limited to `[0..2]`. The one additional state is useful for users to
-/// determine whether a certain memory chunk can be deallocated or not by using values returned
-/// from [`Guard::epoch`](crate::Guard::epoch), e.g., if an [`Owned`](crate::Owned) was retired in
-/// epoch `1`, then the [`Owned`](crate::Owned) will become completely unreachable in epoch `0`.
+/// The global epoch rotates four [`Epoch`] values in a range of `[0..3]` while the crate itself
+/// functions correctly if the range is limited to `[0..2]`. The one additional state is useful for
+/// users to determine whether a certain memory chunk can be deallocated or not by using values
+/// returned from [`Guard::epoch`](crate::Guard::epoch), e.g., if an [`Owned`](crate::Owned) was
+/// retired in [`Epoch`] `1`, then the [`Owned`](crate::Owned) will become completely unreachable in
+/// [`Epoch`] `0`.
 #[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Epoch {
     value: u8,
@@ -18,6 +19,8 @@ impl Epoch {
     ///
     /// The current [`Epoch`] may lag behind the global epoch value by `1`, therefore this method
     /// returns an [`Epoch`] three epochs next to `self`.
+    ///
+    /// # Examples
     ///
     /// ```
     /// use sdd::Epoch;
@@ -34,6 +37,8 @@ impl Epoch {
     }
 
     /// Returns the next [`Epoch`] value.
+    ///
+    /// # Examples
     ///
     /// ```
     /// use sdd::Epoch;
@@ -55,6 +60,8 @@ impl Epoch {
     }
 
     /// Returns the previous [`Epoch`] value.
+    ///
+    /// # Examples
     ///
     /// ```
     /// use sdd::Epoch;

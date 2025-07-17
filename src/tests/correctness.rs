@@ -172,7 +172,7 @@ mod test_correctness {
     #[test]
     fn owned_nested_unchecked() {
         let nested_owned = Owned::new(C(Owned::new(C(Owned::new(11)))));
-        assert_eq!(*(*(*nested_owned).0).0, 11);
+        assert_eq!(*(nested_owned.0 .0), 11);
     }
 
     #[test]

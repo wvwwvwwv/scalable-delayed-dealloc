@@ -35,7 +35,7 @@ impl<T: 'static> AtomicShared<T> {
     #[inline]
     pub fn new(t: T) -> Self {
         Self {
-            instance_ptr: AtomicPtr::new(RefCounted::new_shared(t).cast_mut()),
+            instance_ptr: AtomicPtr::new(RefCounted::new_shared(t).as_ptr()),
         }
     }
 }

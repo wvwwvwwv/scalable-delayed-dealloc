@@ -240,29 +240,37 @@ impl Collector {
             (*collector_ptr).state.load(Relaxed),
             u8::from((*collector_ptr).announcement)
         );
+        if (*collector_ptr).has_garbage {
+            let mut garbage_link = (*collector_ptr).next_instance_link.take();
+            (*collector_ptr).next_instance_link = (*collector_ptr).previous_instance_link.take();
+            (*collector_ptr).previous_instance_link = (*collector_ptr).current_instance_link.take();
+            (*collector_ptr).has_garbage = (*collector_ptr).next_instance_link.is_some()
+                || (*collector_ptr).previous_instance_link.is_some();
+            while let Some(instance_ptr) = garbage_link.take() {
+                garbage_link = (*instance_ptr.as_ptr()).next_ptr();
+                let mut guard = ExitGuard::new(garbage_link, |mut garbage_link| {
+                    while let Some(instance_ptr) = garbage_link.take() {
+                        // Something went wrong during dropping and deallocating an instance.
+                        garbage_link = (*instance_ptr.as_ptr()).next_ptr();
 
-        let mut garbage_link = (*collector_ptr).next_instance_link.take();
-        (*collector_ptr).next_instance_link = (*collector_ptr).previous_instance_link.take();
-        (*collector_ptr).previous_instance_link = (*collector_ptr).current_instance_link.take();
-        (*collector_ptr).has_garbage = (*collector_ptr).next_instance_link.is_some()
-            || (*collector_ptr).previous_instance_link.is_some();
-        while let Some(instance_ptr) = garbage_link.take() {
-            garbage_link = (*instance_ptr.as_ptr()).next_ptr();
-            let mut guard = ExitGuard::new(garbage_link, |mut garbage_link| {
-                while let Some(instance_ptr) = garbage_link.take() {
-                    // Something went wrong during dropping and deallocating an instance.
-                    garbage_link = (*instance_ptr.as_ptr()).next_ptr();
+                        // Previous `drop_and_dealloc` may have accessed `self.current_instance_link`.
+                        std::sync::atomic::compiler_fence(Acquire);
+                        Collector::collect(collector_ptr, instance_ptr.as_ptr());
+                    }
+                });
 
-                    // Previous `drop_and_dealloc` may have accessed `self.current_instance_link`.
-                    std::sync::atomic::compiler_fence(Acquire);
-                    Collector::collect(collector_ptr, instance_ptr.as_ptr());
-                }
-            });
-
-            // The `drop` below may access `self.current_instance_link`.
-            std::sync::atomic::compiler_fence(Acquire);
-            drop(Box::from_raw(instance_ptr.as_ptr()));
-            garbage_link = guard.take();
+                // The `drop` below may access `self.current_instance_link`.
+                std::sync::atomic::compiler_fence(Acquire);
+                drop(Box::from_raw(instance_ptr.as_ptr()));
+                garbage_link = guard.take();
+            }
+        }
+        if (*collector_ptr).has_garbage {
+            // The collector still has garbage instances.
+            (*collector_ptr).next_epoch_update = Self::CADENCE / 4;
+        } else {
+            // No need to update the epoch immediately.
+            (*collector_ptr).next_epoch_update = Self::CADENCE;
         }
     }
 

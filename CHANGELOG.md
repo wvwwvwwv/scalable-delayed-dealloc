@@ -1,5 +1,10 @@
 # Changelog
 
+3.0.10
+
+* Minor epoch update policiy optimization.
+* Minor `NonNull` optimization on `Owned` and `Shared`.
+
 3.0.9
 
 * Fix unsound `Sync` implementations of `AtomicShared` and `Shared`; previously, the `Sync` implementation allowed an arbitrary thread to own/drop the contained instance.

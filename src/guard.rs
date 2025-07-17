@@ -9,6 +9,7 @@ use std::panic::UnwindSafe;
 /// [`Guard`] internally prevents the global epoch value from passing through the value
 /// announced by the current thread, thus keeping reachable instances in the thread from being
 /// garbage collected.
+#[derive(Debug)]
 pub struct Guard {
     collector_ptr: *mut Collector,
 }

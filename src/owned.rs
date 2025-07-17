@@ -10,7 +10,7 @@ use std::ptr::{addr_of, NonNull};
 /// The instance it passed to the `EBR` garbage collector when the [`Owned`] is dropped.
 #[derive(Debug)]
 pub struct Owned<T> {
-    instance_ptr: *const RefCounted<T>,
+    instance_ptr: NonNull<RefCounted<T>>,
 }
 
 impl<T: 'static> Owned<T> {
@@ -77,7 +77,7 @@ impl<T> Owned<T> {
     #[inline]
     #[must_use]
     pub fn get_guarded_ptr<'g>(&self, _guard: &'g Guard) -> Ptr<'g, T> {
-        Ptr::from(self.instance_ptr)
+        Ptr::from(self.instance_ptr.as_ptr())
     }
 
     /// Returns a reference to the instance that may live as long as the supplied [`Guard`].
@@ -119,7 +119,7 @@ impl<T> Owned<T> {
     /// ```
     #[inline]
     pub unsafe fn get_mut(&mut self) -> &mut T {
-        (*self.instance_ptr.cast_mut()).get_mut_unique()
+        (*self.instance_ptr.as_ptr()).get_mut_unique()
     }
 
     /// Provides a raw pointer to the instance.
@@ -173,7 +173,7 @@ impl<T> Owned<T> {
     /// ```
     #[inline]
     pub unsafe fn drop_in_place(self) {
-        drop(Box::from_raw(self.instance_ptr.cast_mut()));
+        drop(Box::from_raw(self.instance_ptr.as_ptr()));
         forget(self);
     }
 
@@ -188,22 +188,20 @@ impl<T> Owned<T> {
             },
             0
         );
-        Self {
-            instance_ptr: ptr.as_ptr(),
-        }
+        Self { instance_ptr: ptr }
     }
 
     /// Returns a pointer to the [`RefCounted`].
     #[inline]
     pub(super) const fn underlying_ptr(&self) -> *const RefCounted<T> {
-        self.instance_ptr
+        self.instance_ptr.as_ptr()
     }
 }
 
 impl<T> AsRef<T> for Owned<T> {
     #[inline]
     fn as_ref(&self) -> &T {
-        unsafe { &*self.instance_ptr }
+        unsafe { &*self.instance_ptr.as_ptr() }
     }
 }
 
@@ -219,7 +217,7 @@ impl<T> Deref for Owned<T> {
 impl<T> Drop for Owned<T> {
     #[inline]
     fn drop(&mut self) {
-        RefCounted::pass_to_collector(self.instance_ptr.cast_mut());
+        RefCounted::pass_to_collector(self.instance_ptr.as_ptr());
     }
 }
 

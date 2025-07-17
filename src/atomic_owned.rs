@@ -12,7 +12,6 @@ use std::sync::atomic::Ordering::{self, Relaxed};
 pub struct AtomicOwned<T> {
     instance_ptr: AtomicPtr<RefCounted<T>>,
 }
-
 /// A pair of [`Owned`] and [`Ptr`] of the same type.
 pub type OwnedPtrPair<'g, T> = (Option<Owned<T>>, Ptr<'g, T>);
 
@@ -35,7 +34,7 @@ impl<T: 'static> AtomicOwned<T> {
     #[inline]
     pub fn new(t: T) -> Self {
         Self {
-            instance_ptr: AtomicPtr::new(RefCounted::new_unique(t).cast_mut()),
+            instance_ptr: AtomicPtr::new(RefCounted::new_unique(t).as_ptr()),
         }
     }
 }
