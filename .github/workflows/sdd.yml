@@ -27,13 +27,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Prepare
-        run: sudo apt-get install gcc-multilib;
+        run: sudo apt-get update;
+          sudo apt-get install gcc-multilib;
           rustup target add i686-unknown-linux-gnu
       - name: Debug
         run: RUST_BACKTRACE=1 cargo test --target i686-unknown-linux-gnu;
           RUST_BACKTRACE=1 cargo test --target i686-unknown-linux-gnu -p examples
       - name: Release
-        run: RUST_BACKTRACE=1 cargo test --target i686-unknown-linux-gnu --release;
+        run:
+          RUST_BACKTRACE=1 cargo test --target i686-unknown-linux-gnu --release;
           RUST_BACKTRACE=1 cargo test --target i686-unknown-linux-gnu --release -p examples
   check-basic-aarch64:
     runs-on: macos-latest
@@ -78,7 +80,7 @@ jobs:
       - name: Format
         run: cargo fmt --check;
           cargo fmt -p examples --check
-      - name: Clippy 
+      - name: Clippy
         run: cargo clippy --all;
           cargo clippy -p examples --all
       - name: Doc
