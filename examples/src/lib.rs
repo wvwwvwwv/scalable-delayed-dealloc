@@ -1,3 +1,4 @@
 #![deny(warnings, clippy::all, clippy::pedantic)]
 
-mod ebr;
+#[cfg(test)]
+mod examples;

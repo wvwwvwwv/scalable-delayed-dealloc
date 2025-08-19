@@ -1,4 +1,4 @@
-use std::panic::UnwindSafe;
+use std::panic::{RefUnwindSafe, UnwindSafe};
 
 use crate::Epoch;
 use crate::collectible::DeferredClosure;
@@ -158,4 +158,5 @@ impl Drop for Guard {
     }
 }
 
+impl RefUnwindSafe for Guard {}
 impl UnwindSafe for Guard {}
