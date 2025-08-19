@@ -56,7 +56,6 @@ impl Collectible for Link {
         unsafe { std::mem::transmute(fat_ptr) }
     }
 
-    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     #[inline]
     fn set_next_ptr(&self, next_ptr: Option<NonNull<dyn Collectible>>) {
         let data: (*mut usize, *mut usize) = next_ptr.map_or_else(

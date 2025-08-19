@@ -29,7 +29,7 @@ impl Tag {
     /// Returns the tag embedded in the pointer.
     #[inline]
     pub(super) fn into_tag<P>(ptr: *const P) -> Self {
-        match ((ptr as usize & 1) == 1, (ptr as usize & 2) == 2) {
+        match ((ptr.addr() & 1) == 1, (ptr.addr() & 2) == 2) {
             (false, false) => Tag::None,
             (true, false) => Tag::First,
             (false, true) => Tag::Second,
@@ -40,13 +40,13 @@ impl Tag {
     /// Sets a tag, overwriting any existing tag in the pointer.
     #[inline]
     pub(super) fn update_tag<P>(ptr: *const P, tag: Tag) -> *const P {
-        (((ptr as usize) & (!3)) | tag.value()) as *const P
+        ptr.map_addr(|addr| (addr & (!3)) | tag.value())
     }
 
     /// Returns the pointer with the tag bits erased.
     #[inline]
     pub(super) fn unset_tag<P>(ptr: *const P) -> *const P {
-        ((ptr as usize) & (!3)) as *const P
+        ptr.map_addr(|addr| addr & (!3))
     }
 }
 

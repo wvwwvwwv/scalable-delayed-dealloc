@@ -1,11 +1,13 @@
 #[cfg(feature = "loom")]
 #[cfg(test)]
 mod test_model {
-    use crate::{suspend, AtomicOwned, AtomicShared, Guard};
-    use loom::sync::atomic::AtomicUsize;
-    use loom::thread::{spawn, yield_now};
     use std::sync::atomic::Ordering::Relaxed;
     use std::sync::{Arc, Mutex};
+
+    use loom::sync::atomic::AtomicUsize;
+    use loom::thread::{spawn, yield_now};
+
+    use crate::{AtomicOwned, AtomicShared, Guard, suspend};
 
     struct A(String, Arc<AtomicUsize>);
     impl Drop for A {

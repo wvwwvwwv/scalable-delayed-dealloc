@@ -1,9 +1,10 @@
-use super::collectible::{Collectible, Link};
-use super::collector::Collector;
 use std::ops::Deref;
-use std::ptr::{self, addr_of, NonNull};
+use std::ptr::{self, NonNull, addr_of};
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::{self, Relaxed};
+
+use crate::collectible::{Collectible, Link};
+use crate::collector::Collector;
 
 /// [`RefCounted`] stores an instance of type `T`, and a union of a link to the next
 /// [`Collectible`] or the reference counter.
@@ -46,11 +47,7 @@ impl<T> RefCounted<T> {
                 order,
                 order,
                 |r| {
-                    if r % 2 == 1 {
-                        Some(r + 2)
-                    } else {
-                        None
-                    }
+                    if r & 1 == 1 { Some(r + 2) } else { None }
                 },
             )
             .is_ok()
@@ -78,7 +75,7 @@ impl<T> RefCounted<T> {
     pub(super) fn add_ref(&self) {
         let mut current = self.ref_cnt().load(Relaxed);
         loop {
-            debug_assert_eq!(current % 2, 1);
+            debug_assert_eq!(current & 1, 1);
             debug_assert!(current <= usize::MAX - 2, "reference count overflow");
             match self
                 .ref_cnt()
@@ -138,9 +135,7 @@ impl<T> RefCounted<T> {
         let dyn_mut_ptr: *mut dyn Collectible = ptr;
         #[allow(clippy::transmute_ptr_to_ptr)]
         let dyn_mut_ptr: *mut dyn Collectible = unsafe { std::mem::transmute(dyn_mut_ptr) };
-        unsafe {
-            Collector::collect(Collector::current(), dyn_mut_ptr);
-        }
+        Collector::collect(Collector::current(), dyn_mut_ptr);
     }
 }
 

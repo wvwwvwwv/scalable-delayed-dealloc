@@ -1,7 +1,8 @@
-use super::collectible::DeferredClosure;
-use super::collector::Collector;
-use super::Epoch;
 use std::panic::UnwindSafe;
+
+use crate::Epoch;
+use crate::collectible::DeferredClosure;
+use crate::collector::Collector;
 
 /// [`Guard`] allows the user to read [`AtomicShared`](super::AtomicShared) and keeps the
 /// underlying instance pinned to the thread.
@@ -33,9 +34,7 @@ impl Guard {
     #[must_use]
     pub fn new() -> Self {
         let collector_ptr = Collector::current();
-        unsafe {
-            Collector::new_guard(collector_ptr, true);
-        }
+        Collector::new_guard(collector_ptr, true);
         Self { collector_ptr }
     }
 
@@ -138,12 +137,10 @@ impl Guard {
     /// ```
     #[inline]
     pub fn defer_execute<F: 'static + FnOnce()>(&self, f: F) {
-        unsafe {
-            Collector::collect(
-                self.collector_ptr,
-                Box::into_raw(Box::new(DeferredClosure::new(f))),
-            );
-        }
+        Collector::collect(
+            self.collector_ptr,
+            Box::into_raw(Box::new(DeferredClosure::new(f))),
+        );
     }
 }
 
@@ -157,9 +154,7 @@ impl Default for Guard {
 impl Drop for Guard {
     #[inline]
     fn drop(&mut self) {
-        unsafe {
-            Collector::end_guard(self.collector_ptr);
-        }
+        Collector::end_guard(self.collector_ptr);
     }
 }
 

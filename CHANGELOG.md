@@ -1,8 +1,12 @@
 # Changelog
 
+4.0.0 (in progress)
+
+* Bump MSRV to 1.85.0 / Edition 2024.
+
 3.0.10
 
-* Minor epoch update policiy optimization.
+* Minor epoch update policy optimization.
 * Minor `NonNull` optimization on `Owned` and `Shared`.
 
 3.0.9

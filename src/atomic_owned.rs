@@ -1,10 +1,11 @@
-use super::maybe_std::AtomicPtr;
-use super::ref_counted::RefCounted;
-use super::{Guard, Owned, Ptr, Tag};
 use std::mem::forget;
 use std::panic::UnwindSafe;
-use std::ptr::{null, null_mut, NonNull};
+use std::ptr::{NonNull, null, null_mut};
 use std::sync::atomic::Ordering::{self, Relaxed};
+
+use crate::maybe_std::AtomicPtr;
+use crate::ref_counted::RefCounted;
+use crate::{Guard, Owned, Ptr, Tag};
 
 /// [`AtomicOwned`] owns the underlying instance, and allows users to perform atomic operations
 /// on the pointer to it.

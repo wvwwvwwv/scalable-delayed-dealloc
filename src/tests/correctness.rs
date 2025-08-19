@@ -1,13 +1,14 @@
 #[cfg(test)]
 #[cfg(not(feature = "loom"))]
 mod test_correctness {
-    use crate::collector::Collector;
-    use crate::{suspend, AtomicOwned, AtomicShared, Guard, Owned, Ptr, Shared, Tag};
     use std::ops::Deref;
     use std::panic::UnwindSafe;
     use std::sync::atomic::Ordering::{AcqRel, Acquire, Relaxed, Release};
     use std::sync::atomic::{AtomicBool, AtomicUsize};
     use std::thread;
+
+    use crate::collector::Collector;
+    use crate::{AtomicOwned, AtomicShared, Guard, Owned, Ptr, Shared, Tag, suspend};
 
     static_assertions::assert_impl_all!(AtomicShared<String>: Send, Sync, UnwindSafe);
     static_assertions::assert_impl_all!(Guard: UnwindSafe);
@@ -172,7 +173,7 @@ mod test_correctness {
     #[test]
     fn owned_nested_unchecked() {
         let nested_owned = Owned::new(C(Owned::new(C(Owned::new(11)))));
-        assert_eq!(*(nested_owned.0 .0), 11);
+        assert_eq!(*(nested_owned.0.0), 11);
     }
 
     #[test]
@@ -312,13 +313,14 @@ mod test_correctness {
 
             thread::scope(|s| {
                 for _ in 0..num_threads {
-                    assert!(s
-                        .spawn(|| {
+                    assert!(
+                        s.spawn(|| {
                             let owned = Owned::new(B(&DEALLOCATED));
                             assert_ne!(owned.0.load(Relaxed), usize::MAX);
                         })
                         .join()
-                        .is_ok());
+                        .is_ok()
+                    );
                 }
             });
 
@@ -368,7 +370,9 @@ mod test_correctness {
                         })
                     })
                     .collect();
-                threads.into_iter().for_each(|t| assert!(t.join().is_ok()));
+                for t in threads {
+                    assert!(t.join().is_ok());
+                }
             });
 
             while DEALLOCATED.load(Relaxed) != num_threads * 2 {

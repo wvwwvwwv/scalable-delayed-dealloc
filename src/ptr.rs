@@ -1,9 +1,10 @@
-use super::ref_counted::RefCounted;
-use super::{Shared, Tag};
 use std::marker::PhantomData;
 use std::panic::UnwindSafe;
 use std::sync::atomic::Ordering::Relaxed;
 use std::{ptr, ptr::NonNull};
+
+use crate::ref_counted::RefCounted;
+use crate::{Shared, Tag};
 
 /// [`Ptr`] points to an instance.
 #[derive(Debug)]

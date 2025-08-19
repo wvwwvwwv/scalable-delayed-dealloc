@@ -1,10 +1,11 @@
-use super::collectible::{Collectible, Link};
-use super::exit_guard::ExitGuard;
-use super::maybe_std::fence as maybe_std_fence;
-use super::{Epoch, Tag};
-use std::ptr::{self, addr_of_mut, NonNull};
+use std::ptr::{self, NonNull, addr_of_mut};
 use std::sync::atomic::Ordering::{Acquire, Relaxed, Release, SeqCst};
 use std::sync::atomic::{AtomicPtr, AtomicU8};
+
+use crate::collectible::{Collectible, Link};
+use crate::exit_guard::ExitGuard;
+use crate::maybe_std::fence as maybe_std_fence;
+use crate::{Epoch, Tag};
 
 /// [`Collector`] is a garbage collector that reclaims thread-locally unreachable instances
 /// when they are globally unreachable.
@@ -63,87 +64,92 @@ impl Collector {
     ///
     /// The method may panic if the number of readers has reached `u32::MAX`.
     #[inline]
-    pub(super) unsafe fn new_guard(collector_ptr: *mut Collector, collect_garbage: bool) {
-        if (*collector_ptr).num_readers == 0 {
-            debug_assert_eq!(
-                (*collector_ptr).state.load(Relaxed) & Self::INACTIVE,
-                Self::INACTIVE
-            );
-            (*collector_ptr).num_readers = 1;
-            let new_epoch = Epoch::from_u8(GLOBAL_ROOT.epoch.load(Relaxed));
-            if cfg!(feature = "loom") || cfg!(not(any(target_arch = "x86", target_arch = "x86_64")))
-            {
-                // What will happen after the fence strictly happens after the fence.
-                (*collector_ptr).state.store(new_epoch.into(), Relaxed);
-                maybe_std_fence(SeqCst);
-            } else {
-                // This special optimization is excerpted from
-                // [`crossbeam_epoch`](https://docs.rs/crossbeam-epoch/).
-                //
-                // The rationale behind the code is, it compiles to `lock xchg` that
-                // practically acts as a full memory barrier on `X86`, and is much faster than
-                // `mfence`.
-                (*collector_ptr).state.swap(new_epoch.into(), SeqCst);
-            }
-            if (*collector_ptr).announcement != new_epoch {
-                (*collector_ptr).announcement = new_epoch;
-                if collect_garbage {
-                    let mut exit_guard =
-                        ExitGuard::new((collector_ptr, false), |(collector_ptr, result)| {
-                            if !result {
-                                Self::end_guard(collector_ptr);
-                            }
-                        });
-                    Collector::epoch_updated(exit_guard.0);
-                    exit_guard.1 = true;
+    pub(super) fn new_guard(collector_ptr: *mut Collector, collect_garbage: bool) {
+        unsafe {
+            if (*collector_ptr).num_readers == 0 {
+                debug_assert_eq!(
+                    (*collector_ptr).state.load(Relaxed) & Self::INACTIVE,
+                    Self::INACTIVE
+                );
+                (*collector_ptr).num_readers = 1;
+                let new_epoch = Epoch::from_u8(GLOBAL_ROOT.epoch.load(Relaxed));
+                if cfg!(feature = "loom")
+                    || cfg!(not(any(target_arch = "x86", target_arch = "x86_64")))
+                {
+                    // What will happen after the fence strictly happens after the fence.
+                    (*collector_ptr).state.store(new_epoch.into(), Relaxed);
+                    maybe_std_fence(SeqCst);
+                } else {
+                    // This special optimization is excerpted from
+                    // [`crossbeam_epoch`](https://docs.rs/crossbeam-epoch/).
+                    //
+                    // The rationale behind the code is, it compiles to `lock xchg` that
+                    // practically acts as a full memory barrier on `X86`, and is much faster than
+                    // `mfence`.
+                    (*collector_ptr).state.swap(new_epoch.into(), SeqCst);
                 }
+                if (*collector_ptr).announcement != new_epoch {
+                    (*collector_ptr).announcement = new_epoch;
+                    if collect_garbage {
+                        let mut exit_guard =
+                            ExitGuard::new((collector_ptr, false), |(collector_ptr, result)| {
+                                if !result {
+                                    Self::end_guard(collector_ptr);
+                                }
+                            });
+                        Collector::epoch_updated(exit_guard.0);
+                        exit_guard.1 = true;
+                    }
+                }
+            } else {
+                debug_assert_eq!((*collector_ptr).state.load(Relaxed) & Self::INACTIVE, 0);
+                assert_ne!(
+                    (*collector_ptr).num_readers,
+                    u32::MAX,
+                    "Too many EBR guards"
+                );
+                (*collector_ptr).num_readers += 1;
             }
-        } else {
-            debug_assert_eq!((*collector_ptr).state.load(Relaxed) & Self::INACTIVE, 0);
-            assert_ne!(
-                (*collector_ptr).num_readers,
-                u32::MAX,
-                "Too many EBR guards"
-            );
-            (*collector_ptr).num_readers += 1;
         }
     }
 
     /// Acknowledges an existing [`Guard`](super::Guard) being dropped.
     #[inline]
-    pub(super) unsafe fn end_guard(collector_ptr: *mut Collector) {
-        debug_assert_eq!((*collector_ptr).state.load(Relaxed) & Self::INACTIVE, 0);
-        debug_assert_eq!(
-            (*collector_ptr).state.load(Relaxed),
-            u8::from((*collector_ptr).announcement)
-        );
-
-        if (*collector_ptr).num_readers == 1 {
-            (*collector_ptr).num_readers = 0;
-            if (*collector_ptr).next_epoch_update == 0 {
-                if (*collector_ptr).has_garbage
-                    || Tag::into_tag(GLOBAL_ROOT.chain_head.load(Relaxed)) == Tag::Second
-                {
-                    Collector::scan(collector_ptr);
-                }
-                (*collector_ptr).next_epoch_update = if (*collector_ptr).has_garbage {
-                    Self::CADENCE / 4
-                } else {
-                    Self::CADENCE
-                };
-            } else {
-                (*collector_ptr).next_epoch_update =
-                    (*collector_ptr).next_epoch_update.saturating_sub(1);
-            }
-
-            // What has happened cannot be observed after the thread setting itself inactive has
-            // been witnessed.
-            (*collector_ptr).state.store(
-                u8::from((*collector_ptr).announcement) | Self::INACTIVE,
-                Release,
+    pub(super) fn end_guard(collector_ptr: *mut Collector) {
+        unsafe {
+            debug_assert_eq!((*collector_ptr).state.load(Relaxed) & Self::INACTIVE, 0);
+            debug_assert_eq!(
+                (*collector_ptr).state.load(Relaxed),
+                u8::from((*collector_ptr).announcement)
             );
-        } else {
-            (*collector_ptr).num_readers -= 1;
+
+            if (*collector_ptr).num_readers == 1 {
+                (*collector_ptr).num_readers = 0;
+                if (*collector_ptr).next_epoch_update == 0 {
+                    if (*collector_ptr).has_garbage
+                        || Tag::into_tag(GLOBAL_ROOT.chain_head.load(Relaxed)) == Tag::Second
+                    {
+                        Collector::scan(collector_ptr);
+                    }
+                    (*collector_ptr).next_epoch_update = if (*collector_ptr).has_garbage {
+                        Self::CADENCE / 4
+                    } else {
+                        Self::CADENCE
+                    };
+                } else {
+                    (*collector_ptr).next_epoch_update =
+                        (*collector_ptr).next_epoch_update.saturating_sub(1);
+                }
+
+                // What has happened cannot be observed after the thread setting itself inactive has
+                // been witnessed.
+                (*collector_ptr).state.store(
+                    u8::from((*collector_ptr).announcement) | Self::INACTIVE,
+                    Release,
+                );
+            } else {
+                (*collector_ptr).num_readers -= 1;
+            }
         }
     }
 
@@ -167,20 +173,20 @@ impl Collector {
 
     /// Collects garbage instances.
     #[inline]
-    pub(super) unsafe fn collect(
-        collector_ptr: *mut Collector,
-        instance_ptr: *mut dyn Collectible,
-    ) {
+    pub(super) fn collect(collector_ptr: *mut Collector, instance_ptr: *mut dyn Collectible) {
         if instance_ptr.is_null() {
             return;
         }
-        (*instance_ptr).set_next_ptr((*collector_ptr).current_instance_link.take());
-        (*collector_ptr).current_instance_link = NonNull::new(instance_ptr);
-        (*collector_ptr).next_epoch_update = (*collector_ptr)
-            .next_epoch_update
-            .saturating_sub(1)
-            .min(Self::CADENCE / 4);
-        (*collector_ptr).has_garbage = true;
+
+        unsafe {
+            (*instance_ptr).set_next_ptr((*collector_ptr).current_instance_link.take());
+            (*collector_ptr).current_instance_link = NonNull::new(instance_ptr);
+            (*collector_ptr).next_epoch_update = (*collector_ptr)
+                .next_epoch_update
+                .saturating_sub(1)
+                .min(Self::CADENCE / 4);
+            (*collector_ptr).has_garbage = true;
+        }
     }
 
     /// Passes its garbage instances to other threads.
@@ -234,131 +240,140 @@ impl Collector {
     }
 
     /// Acknowledges a new global epoch.
-    unsafe fn epoch_updated(collector_ptr: *mut Collector) {
-        debug_assert_eq!((*collector_ptr).state.load(Relaxed) & Self::INACTIVE, 0);
-        debug_assert_eq!(
-            (*collector_ptr).state.load(Relaxed),
-            u8::from((*collector_ptr).announcement)
-        );
-        if (*collector_ptr).has_garbage {
-            let mut garbage_link = (*collector_ptr).next_instance_link.take();
-            (*collector_ptr).next_instance_link = (*collector_ptr).previous_instance_link.take();
-            (*collector_ptr).previous_instance_link = (*collector_ptr).current_instance_link.take();
-            (*collector_ptr).has_garbage = (*collector_ptr).next_instance_link.is_some()
-                || (*collector_ptr).previous_instance_link.is_some();
-            while let Some(instance_ptr) = garbage_link.take() {
-                garbage_link = (*instance_ptr.as_ptr()).next_ptr();
-                let mut guard = ExitGuard::new(garbage_link, |mut garbage_link| {
-                    while let Some(instance_ptr) = garbage_link.take() {
-                        // Something went wrong during dropping and deallocating an instance.
-                        garbage_link = (*instance_ptr.as_ptr()).next_ptr();
+    fn epoch_updated(collector_ptr: *mut Collector) {
+        unsafe {
+            debug_assert_eq!((*collector_ptr).state.load(Relaxed) & Self::INACTIVE, 0);
+            debug_assert_eq!(
+                (*collector_ptr).state.load(Relaxed),
+                u8::from((*collector_ptr).announcement)
+            );
+            if (*collector_ptr).has_garbage {
+                let mut garbage_link = (*collector_ptr).next_instance_link.take();
+                (*collector_ptr).next_instance_link =
+                    (*collector_ptr).previous_instance_link.take();
+                (*collector_ptr).previous_instance_link =
+                    (*collector_ptr).current_instance_link.take();
+                (*collector_ptr).has_garbage = (*collector_ptr).next_instance_link.is_some()
+                    || (*collector_ptr).previous_instance_link.is_some();
+                while let Some(instance_ptr) = garbage_link.take() {
+                    garbage_link = (*instance_ptr.as_ptr()).next_ptr();
+                    let mut guard = ExitGuard::new(garbage_link, |mut garbage_link| {
+                        while let Some(instance_ptr) = garbage_link.take() {
+                            // Something went wrong during dropping and deallocating an instance.
+                            garbage_link = (*instance_ptr.as_ptr()).next_ptr();
 
-                        // Previous `drop_and_dealloc` may have accessed `self.current_instance_link`.
-                        std::sync::atomic::compiler_fence(Acquire);
-                        Collector::collect(collector_ptr, instance_ptr.as_ptr());
-                    }
-                });
+                            // Previous `drop_and_dealloc` may have accessed `self.current_instance_link`.
+                            std::sync::atomic::compiler_fence(Acquire);
+                            Collector::collect(collector_ptr, instance_ptr.as_ptr());
+                        }
+                    });
 
-                // The `drop` below may access `self.current_instance_link`.
-                std::sync::atomic::compiler_fence(Acquire);
-                drop(Box::from_raw(instance_ptr.as_ptr()));
-                garbage_link = guard.take();
+                    // The `drop` below may access `self.current_instance_link`.
+                    std::sync::atomic::compiler_fence(Acquire);
+                    drop(Box::from_raw(instance_ptr.as_ptr()));
+                    garbage_link = guard.take();
+                }
             }
-        }
-        if (*collector_ptr).has_garbage {
-            // The collector still has garbage instances.
-            (*collector_ptr).next_epoch_update = Self::CADENCE / 4;
-        } else {
-            // No need to update the epoch immediately.
-            (*collector_ptr).next_epoch_update = Self::CADENCE;
+            if (*collector_ptr).has_garbage {
+                // The collector still has garbage instances.
+                (*collector_ptr).next_epoch_update = Self::CADENCE / 4;
+            } else {
+                // No need to update the epoch immediately.
+                (*collector_ptr).next_epoch_update = Self::CADENCE;
+            }
         }
     }
 
     /// Clears all the garbage instances for dropping the [`Collector`].
-    unsafe fn clear_for_drop(collector_ptr: *mut Collector) {
-        loop {
-            let garbage_containers = [
-                (*collector_ptr).previous_instance_link.take(),
-                (*collector_ptr).current_instance_link.take(),
-                (*collector_ptr).next_instance_link.take(),
-            ];
-            if !garbage_containers.iter().any(Option::is_some) {
-                break;
-            }
-            for mut link in garbage_containers {
-                while let Some(instance_ptr) = link {
-                    link = (*instance_ptr.as_ptr()).next_ptr();
-                    drop(Box::from_raw(instance_ptr.as_ptr()));
+    fn clear_for_drop(collector_ptr: *mut Collector) {
+        unsafe {
+            loop {
+                let garbage_containers = [
+                    (*collector_ptr).previous_instance_link.take(),
+                    (*collector_ptr).current_instance_link.take(),
+                    (*collector_ptr).next_instance_link.take(),
+                ];
+                if !garbage_containers.iter().any(Option::is_some) {
+                    break;
+                }
+                for mut link in garbage_containers {
+                    while let Some(instance_ptr) = link {
+                        link = (*instance_ptr.as_ptr()).next_ptr();
+                        drop(Box::from_raw(instance_ptr.as_ptr()));
+                    }
                 }
             }
         }
     }
 
     /// Scans the [`Collector`] instances to update the global epoch.
-    unsafe fn scan(collector_ptr: *mut Collector) -> bool {
-        debug_assert_eq!((*collector_ptr).state.load(Relaxed) & Self::INVALID, 0);
+    fn scan(collector_ptr: *mut Collector) -> bool {
+        unsafe {
+            debug_assert_eq!((*collector_ptr).state.load(Relaxed) & Self::INVALID, 0);
 
-        // Only one thread that acquires the chain lock is allowed to scan the thread-local
-        // collectors.
-        let lock_result = Self::lock_chain();
-        if let Ok(mut current_collector_ptr) = lock_result {
-            let _guard = ExitGuard::new((), |()| Self::unlock_chain());
+            // Only one thread that acquires the chain lock is allowed to scan the thread-local
+            // collectors.
+            let lock_result = Self::lock_chain();
+            if let Ok(mut current_collector_ptr) = lock_result {
+                let _guard = ExitGuard::new((), |()| Self::unlock_chain());
 
-            let known_epoch = (*collector_ptr).state.load(Relaxed);
-            let mut update_global_epoch = true;
-            let mut prev_collector_ptr: *mut Collector = ptr::null_mut();
-            while !current_collector_ptr.is_null() {
-                if ptr::eq(collector_ptr, current_collector_ptr) {
-                    prev_collector_ptr = current_collector_ptr;
-                    current_collector_ptr = (*collector_ptr).next_link.load(Relaxed);
-                    continue;
-                }
-
-                let collector_state = (*current_collector_ptr).state.load(Acquire);
-                let next_collector_ptr = (*current_collector_ptr).next_link.load(Relaxed);
-                if (collector_state & Self::INVALID) != 0 {
-                    // The collector is obsolete.
-                    let result = if prev_collector_ptr.is_null() {
-                        GLOBAL_ROOT
-                            .chain_head
-                            .fetch_update(Release, Relaxed, |p| {
-                                let tag = Tag::into_tag(p);
-                                debug_assert!(tag == Tag::First || tag == Tag::Both);
-                                if ptr::eq(Tag::unset_tag(p), current_collector_ptr) {
-                                    Some(Tag::update_tag(next_collector_ptr, tag).cast_mut())
-                                } else {
-                                    None
-                                }
-                            })
-                            .is_ok()
-                    } else {
-                        (*prev_collector_ptr)
-                            .next_link
-                            .store(next_collector_ptr, Relaxed);
-                        true
-                    };
-                    if result {
-                        Self::collect(collector_ptr, current_collector_ptr);
-                        current_collector_ptr = next_collector_ptr;
+                let known_epoch = (*collector_ptr).state.load(Relaxed);
+                let mut update_global_epoch = true;
+                let mut prev_collector_ptr: *mut Collector = ptr::null_mut();
+                while !current_collector_ptr.is_null() {
+                    if ptr::eq(collector_ptr, current_collector_ptr) {
+                        prev_collector_ptr = current_collector_ptr;
+                        current_collector_ptr = (*collector_ptr).next_link.load(Relaxed);
                         continue;
                     }
-                } else if (collector_state & Self::INACTIVE) == 0 && collector_state != known_epoch
-                {
-                    // Not ready for an epoch update.
-                    update_global_epoch = false;
-                    break;
-                }
-                prev_collector_ptr = current_collector_ptr;
-                current_collector_ptr = next_collector_ptr;
-            }
 
-            if update_global_epoch {
-                // It is a new era; a fence is required.
-                maybe_std_fence(SeqCst);
-                GLOBAL_ROOT
-                    .epoch
-                    .store(Epoch::from_u8(known_epoch).next().into(), Relaxed);
-                return true;
+                    let collector_state = (*current_collector_ptr).state.load(Acquire);
+                    let next_collector_ptr = (*current_collector_ptr).next_link.load(Relaxed);
+                    if (collector_state & Self::INVALID) != 0 {
+                        // The collector is obsolete.
+                        let result = if prev_collector_ptr.is_null() {
+                            GLOBAL_ROOT
+                                .chain_head
+                                .fetch_update(Release, Relaxed, |p| {
+                                    let tag = Tag::into_tag(p);
+                                    debug_assert!(tag == Tag::First || tag == Tag::Both);
+                                    if ptr::eq(Tag::unset_tag(p), current_collector_ptr) {
+                                        Some(Tag::update_tag(next_collector_ptr, tag).cast_mut())
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .is_ok()
+                        } else {
+                            (*prev_collector_ptr)
+                                .next_link
+                                .store(next_collector_ptr, Relaxed);
+                            true
+                        };
+                        if result {
+                            Self::collect(collector_ptr, current_collector_ptr);
+                            current_collector_ptr = next_collector_ptr;
+                            continue;
+                        }
+                    } else if (collector_state & Self::INACTIVE) == 0
+                        && collector_state != known_epoch
+                    {
+                        // Not ready for an epoch update.
+                        update_global_epoch = false;
+                        break;
+                    }
+                    prev_collector_ptr = current_collector_ptr;
+                    current_collector_ptr = next_collector_ptr;
+                }
+
+                if update_global_epoch {
+                    // It is a new era; a fence is required.
+                    maybe_std_fence(SeqCst);
+                    GLOBAL_ROOT
+                        .epoch
+                        .store(Epoch::from_u8(known_epoch).next().into(), Relaxed);
+                    return true;
+                }
             }
         }
 
@@ -366,39 +381,40 @@ impl Collector {
     }
 
     /// Clears the [`Collector`] chain to if all are invalid.
-    unsafe fn clear_chain() -> bool {
+    fn clear_chain() -> bool {
         let lock_result = Self::lock_chain();
         if let Ok(collector_head) = lock_result {
             let _guard = ExitGuard::new((), |()| Self::unlock_chain());
-
-            let mut current_collector_ptr = collector_head;
-            while !current_collector_ptr.is_null() {
-                if ((*current_collector_ptr).state.load(Acquire) & Self::INVALID) == 0 {
-                    return false;
-                }
-                current_collector_ptr = (*current_collector_ptr).next_link.load(Relaxed);
-            }
-
-            // Reaching here means that there is no `Ptr` that possibly sees any garbage instances
-            // in those `Collector` instances in the chain.
-            let result = GLOBAL_ROOT.chain_head.fetch_update(Release, Relaxed, |p| {
-                if Tag::unset_tag(p) == collector_head {
-                    let tag = Tag::into_tag(p);
-                    debug_assert!(tag == Tag::First || tag == Tag::Both);
-                    Some(Tag::update_tag(ptr::null::<Collector>(), tag).cast_mut())
-                } else {
-                    None
-                }
-            });
-
-            if result.is_ok() {
+            unsafe {
                 let mut current_collector_ptr = collector_head;
                 while !current_collector_ptr.is_null() {
-                    let next_collector_ptr = (*current_collector_ptr).next_link.load(Relaxed);
-                    drop(Box::from_raw(current_collector_ptr));
-                    current_collector_ptr = next_collector_ptr;
+                    if ((*current_collector_ptr).state.load(Acquire) & Self::INVALID) == 0 {
+                        return false;
+                    }
+                    current_collector_ptr = (*current_collector_ptr).next_link.load(Relaxed);
                 }
-                return true;
+
+                // Reaching here means that there is no `Ptr` that possibly sees any garbage instances
+                // in those `Collector` instances in the chain.
+                let result = GLOBAL_ROOT.chain_head.fetch_update(Release, Relaxed, |p| {
+                    if Tag::unset_tag(p) == collector_head {
+                        let tag = Tag::into_tag(p);
+                        debug_assert!(tag == Tag::First || tag == Tag::Both);
+                        Some(Tag::update_tag(ptr::null::<Collector>(), tag).cast_mut())
+                    } else {
+                        None
+                    }
+                });
+
+                if result.is_ok() {
+                    let mut current_collector_ptr = collector_head;
+                    while !current_collector_ptr.is_null() {
+                        let next_collector_ptr = (*current_collector_ptr).next_link.load(Relaxed);
+                        drop(Box::from_raw(current_collector_ptr));
+                        current_collector_ptr = next_collector_ptr;
+                    }
+                    return true;
+                }
             }
         }
         false
@@ -444,9 +460,7 @@ impl Drop for Collector {
     #[inline]
     fn drop(&mut self) {
         let collector_ptr = addr_of_mut!(*self);
-        unsafe {
-            Self::clear_for_drop(collector_ptr);
-        }
+        Self::clear_for_drop(collector_ptr);
     }
 }
 

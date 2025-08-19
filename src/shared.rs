@@ -1,9 +1,10 @@
-use super::ref_counted::RefCounted;
-use super::{Guard, Ptr};
 use std::mem::forget;
 use std::ops::Deref;
 use std::panic::UnwindSafe;
-use std::ptr::{addr_of, NonNull};
+use std::ptr::{NonNull, addr_of};
+
+use crate::ref_counted::RefCounted;
+use crate::{Guard, Ptr};
 
 /// [`Shared`] is a reference-counted handle to an instance.
 ///
@@ -125,10 +126,12 @@ impl<T> Shared<T> {
     /// ```
     #[inline]
     pub unsafe fn get_mut(&mut self) -> Option<&mut T> {
-        self.instance_ptr
-            .as_ptr()
-            .as_mut()
-            .and_then(|r| r.get_mut_shared())
+        unsafe {
+            self.instance_ptr
+                .as_ptr()
+                .as_mut()
+                .and_then(|r| r.get_mut_shared())
+        }
     }
 
     /// Provides a raw pointer to the instance.
@@ -215,14 +218,16 @@ impl<T> Shared<T> {
     #[inline]
     #[must_use]
     pub unsafe fn drop_in_place(self) -> bool {
-        let dropped = if (*self.instance_ptr.as_ptr()).drop_ref() {
-            drop(Box::from_raw(self.instance_ptr.as_ptr()));
-            true
-        } else {
-            false
-        };
-        forget(self);
-        dropped
+        unsafe {
+            let dropped = if (*self.instance_ptr.as_ptr()).drop_ref() {
+                drop(Box::from_raw(self.instance_ptr.as_ptr()));
+                true
+            } else {
+                false
+            };
+            forget(self);
+            dropped
+        }
     }
 
     /// Creates a new [`Shared`] from the given pointer.

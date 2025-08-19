@@ -57,12 +57,12 @@ pub fn suspend() -> bool {
 
 #[cfg(feature = "loom")]
 mod maybe_std {
-    pub(crate) use loom::sync::atomic::{fence, AtomicPtr};
+    pub(crate) use loom::sync::atomic::{AtomicPtr, fence};
 }
 
 #[cfg(not(feature = "loom"))]
 mod maybe_std {
-    pub(crate) use std::sync::atomic::{fence, AtomicPtr};
+    pub(crate) use std::sync::atomic::{AtomicPtr, fence};
 }
 
 #[cfg(test)]

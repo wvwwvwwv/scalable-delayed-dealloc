@@ -1,9 +1,10 @@
-use super::ref_counted::RefCounted;
-use super::{Guard, Ptr};
 use std::mem::forget;
 use std::ops::Deref;
 use std::panic::UnwindSafe;
-use std::ptr::{addr_of, NonNull};
+use std::ptr::{NonNull, addr_of};
+
+use crate::ref_counted::RefCounted;
+use crate::{Guard, Ptr};
 
 /// [`Owned`] uniquely owns an instance.
 ///
@@ -119,7 +120,7 @@ impl<T> Owned<T> {
     /// ```
     #[inline]
     pub unsafe fn get_mut(&mut self) -> &mut T {
-        (*self.instance_ptr.as_ptr()).get_mut_unique()
+        unsafe { (*self.instance_ptr.as_ptr()).get_mut_unique() }
     }
 
     /// Provides a raw pointer to the instance.
@@ -173,7 +174,9 @@ impl<T> Owned<T> {
     /// ```
     #[inline]
     pub unsafe fn drop_in_place(self) {
-        drop(Box::from_raw(self.instance_ptr.as_ptr()));
+        unsafe {
+            drop(Box::from_raw(self.instance_ptr.as_ptr()));
+        }
         forget(self);
     }
 
