@@ -29,10 +29,10 @@ impl Tag {
     /// Returns the tag embedded in the pointer.
     #[inline]
     pub(super) fn into_tag<P>(ptr: *const P) -> Self {
-        match ((ptr.addr() & 1) == 1, (ptr.addr() & 2) == 2) {
-            (false, false) => Tag::None,
-            (true, false) => Tag::First,
-            (false, true) => Tag::Second,
+        match ptr.addr() & 3 {
+            0 => Tag::None,
+            1 => Tag::First,
+            2 => Tag::Second,
             _ => Tag::Both,
         }
     }

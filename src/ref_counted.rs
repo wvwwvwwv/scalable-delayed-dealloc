@@ -132,10 +132,7 @@ impl<T> RefCounted<T> {
     /// Passes a pointer to [`RefCounted`] to the garbage collector.
     #[inline]
     pub(super) fn pass_to_collector(ptr: *mut Self) {
-        let dyn_mut_ptr: *mut dyn Collectible = ptr;
-        #[allow(clippy::transmute_ptr_to_ptr)]
-        let dyn_mut_ptr: *mut dyn Collectible = unsafe { std::mem::transmute(dyn_mut_ptr) };
-        Collector::collect(Collector::current(), dyn_mut_ptr);
+        Collector::collect(Collector::current(), ptr as *mut dyn Collectible);
     }
 }
 

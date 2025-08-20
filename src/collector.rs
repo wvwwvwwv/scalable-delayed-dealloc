@@ -35,14 +35,13 @@ pub(super) struct CollectorRoot {
 struct CollectorAnchor;
 
 impl Collector {
-    /// The cadence of an epoch update.
+    /// The number of quiescent states before an epoch update is triggered.
     const CADENCE: u8 = u8::MAX;
 
-    /// A bit field representing a thread state where the thread does not have a
-    /// [`Guard`](super::Guard).
+    /// Represents a quiescent state.
     const INACTIVE: u8 = 1_u8 << 2;
 
-    /// A bit field representing a thread state where the thread has been terminated.
+    /// Represents a terminated thread state.
     const INVALID: u8 = 1_u8 << 3;
 
     /// Returns the [`Collector`] attached to the current thread.

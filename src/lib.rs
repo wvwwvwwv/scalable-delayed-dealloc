@@ -7,11 +7,11 @@ pub use atomic_owned::AtomicOwned;
 mod atomic_shared;
 pub use atomic_shared::AtomicShared;
 
-mod guard;
-pub use guard::Guard;
-
 mod epoch;
 pub use epoch::Epoch;
+
+mod guard;
+pub use guard::Guard;
 
 mod owned;
 pub use owned::Owned;

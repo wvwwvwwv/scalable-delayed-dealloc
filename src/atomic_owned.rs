@@ -391,6 +391,6 @@ impl<T> Drop for AtomicOwned<T> {
 
 unsafe impl<T: Send> Send for AtomicOwned<T> {}
 
-unsafe impl<T: Sync> Sync for AtomicOwned<T> {}
+unsafe impl<T: Send + Sync> Sync for AtomicOwned<T> {}
 
 impl<T: UnwindSafe> UnwindSafe for AtomicOwned<T> {}

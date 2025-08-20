@@ -1,11 +1,9 @@
-/// [`Epoch`] represents the period of time the global epoch value stays the same.
+/// [`Epoch`] is a unit of time that dictates the lifetime of retired memory regions.
 ///
-/// The global epoch rotates four [`Epoch`] values in a range of `[0..3]` while the crate itself
-/// functions correctly if the range is limited to `[0..2]`. The one additional state is useful for
-/// users to determine whether a certain memory chunk can be deallocated or not by using values
-/// returned from [`Guard::epoch`](crate::Guard::epoch), e.g., if an [`Owned`](crate::Owned) was
-/// retired in [`Epoch`] `1`, then the [`Owned`](crate::Owned) will become completely unreachable in
-/// [`Epoch`] `0`.
+/// The global epoch rotates four [`Epoch`] values in a range of `[0..3]`. An [`Epoch`] value can be
+/// used to check whether a retired memory region is completely unreachable. For example, if the
+/// [`Epoch`] value when a memory region was retired is `0`, it is correct to assume that the memory
+/// region becomes unreachable when the global epoch reaches `3`.
 #[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Epoch {
     value: u8,

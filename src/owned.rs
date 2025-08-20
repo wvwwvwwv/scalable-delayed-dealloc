@@ -226,6 +226,7 @@ impl<T> Drop for Owned<T> {
 
 unsafe impl<T: Send> Send for Owned<T> {}
 
+// `T` does not need to be `Send` since sending `T` is not possible only with `&Owned<T>`.
 unsafe impl<T: Sync> Sync for Owned<T> {}
 
 impl<T: UnwindSafe> UnwindSafe for Owned<T> {}
