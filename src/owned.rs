@@ -8,7 +8,7 @@ use crate::{Guard, Ptr};
 
 /// [`Owned`] uniquely owns an instance.
 ///
-/// The instance it passed to the `EBR` garbage collector when the [`Owned`] is dropped.
+/// The instance is passed to the `EBR` garbage collector when the [`Owned`] is dropped.
 #[derive(Debug)]
 pub struct Owned<T> {
     instance_ptr: NonNull<RefCounted<T>>,
@@ -18,7 +18,7 @@ impl<T: 'static> Owned<T> {
     /// Creates a new instance of [`Owned`].
     ///
     /// The type of the instance must be determined at compile-time, must not contain non-static
-    /// references, and must not be a non-static reference since the instance can, theoretically,
+    /// references, and must not be a non-static reference since the instance can theoretically
     /// survive the process. For instance, `struct Disallowed<'l, T>(&'l T)` is not allowed,
     /// because an instance of the type cannot outlive `'l` whereas the garbage collector does not
     /// guarantee that the instance is dropped within `'l`.

@@ -10,7 +10,7 @@ pub struct Epoch {
 }
 
 impl Epoch {
-    /// This crates uses `4` epoch values.
+    /// This crate uses `4` epoch values.
     const NUM_EPOCHS: u8 = 4;
 
     /// Returns a future [`Epoch`] when the current readers will not be present.

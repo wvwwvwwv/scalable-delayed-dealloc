@@ -1,5 +1,9 @@
 # Changelog
 
+4.0.1
+
+* Minor improvements to documentation.
+
 4.0.0
 
 * Bump MSRV to 1.85.0 / Edition 2024.

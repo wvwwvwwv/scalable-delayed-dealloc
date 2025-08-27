@@ -18,7 +18,7 @@ impl<T: 'static> Shared<T> {
     /// Creates a new [`Shared`].
     ///
     /// The type of the instance must be determined at compile-time, must not contain non-static
-    /// references, and must not be a non-static reference since the instance can, theoretically,
+    /// references, and must not be a non-static reference since the instance can theoretically
     /// survive the process. For instance, `struct Disallowed<'l, T>(&'l T)` is not allowed,
     /// because an instance of the type cannot outlive `'l` whereas the garbage collector does not
     /// guarantee that the instance is dropped within `'l`.
@@ -46,7 +46,7 @@ impl<T> Shared<T> {
     /// `T::drop` can be run after the last strong reference is dropped, therefore it is safe only
     /// if `T::drop` does not access short-lived data or [`std::mem::needs_drop`] is `false` for
     /// `T`. Otherwise, the instance must be manually dropped by invoking [`Self::drop_in_place`]
-    /// before the lifetime of `T` is reached.
+    /// within the lifetime of `T`.
     ///
     /// # Examples
     ///
