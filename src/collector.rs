@@ -46,14 +46,14 @@ impl Collector {
 
     /// Returns the [`Collector`] attached to the current thread.
     #[inline]
-    pub(super) fn current() -> *mut Collector {
+    pub(super) fn current() -> NonNull<Collector> {
         LOCAL_COLLECTOR.with(|local_collector| {
             let mut collector_ptr = local_collector.load(Relaxed);
             if collector_ptr.is_null() {
                 collector_ptr = COLLECTOR_ANCHOR.with(CollectorAnchor::alloc);
                 local_collector.store(collector_ptr, Relaxed);
             }
-            collector_ptr
+            unsafe { NonNull::new_unchecked(collector_ptr) }
         })
     }
 

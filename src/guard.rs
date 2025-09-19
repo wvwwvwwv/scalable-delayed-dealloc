@@ -1,4 +1,5 @@
 use std::panic::{RefUnwindSafe, UnwindSafe};
+use std::ptr::NonNull;
 
 use crate::Epoch;
 use crate::collectible::DeferredClosure;
@@ -12,7 +13,7 @@ use crate::collector::Collector;
 /// garbage collected.
 #[derive(Debug)]
 pub struct Guard {
-    collector_ptr: *mut Collector,
+    collector_ptr: NonNull<Collector>,
 }
 
 impl Guard {
@@ -34,7 +35,7 @@ impl Guard {
     #[must_use]
     pub fn new() -> Self {
         let collector_ptr = Collector::current();
-        Collector::new_guard(collector_ptr, true);
+        Collector::new_guard(collector_ptr.as_ptr(), true);
         Self { collector_ptr }
     }
 
@@ -117,7 +118,7 @@ impl Guard {
     #[inline]
     pub fn accelerate(&self) {
         unsafe {
-            (*self.collector_ptr).accelerate();
+            (*self.collector_ptr.as_ptr()).accelerate();
         }
     }
 
@@ -138,7 +139,7 @@ impl Guard {
     #[inline]
     pub fn defer_execute<F: 'static + FnOnce()>(&self, f: F) {
         Collector::collect(
-            self.collector_ptr,
+            self.collector_ptr.as_ptr(),
             Box::into_raw(Box::new(DeferredClosure::new(f))),
         );
     }
@@ -154,7 +155,7 @@ impl Default for Guard {
 impl Drop for Guard {
     #[inline]
     fn drop(&mut self) {
-        Collector::end_guard(self.collector_ptr);
+        Collector::end_guard(self.collector_ptr.as_ptr());
     }
 }
 
