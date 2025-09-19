@@ -7,6 +7,8 @@ use std::thread;
 use crate::collector::Collector;
 use crate::{AtomicOwned, AtomicShared, Guard, Owned, Ptr, Shared, Tag, suspend};
 
+static_assertions::assert_eq_size!(Guard, usize);
+static_assertions::assert_eq_size!(Option<Guard>, usize);
 static_assertions::assert_impl_all!(AtomicShared<String>: Send, Sync, RefUnwindSafe, UnwindSafe);
 static_assertions::assert_impl_all!(Guard: RefUnwindSafe, UnwindSafe);
 static_assertions::assert_impl_all!(Ptr<String>: RefUnwindSafe, UnwindSafe);

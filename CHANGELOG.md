@@ -1,5 +1,9 @@
 # Changelog
 
+4.1.0
+
+* The size of `Option<Guard>` is now that of `Guard`.
+
 4.0.1
 
 * Minor improvements to documentation.
