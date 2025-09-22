@@ -73,6 +73,7 @@ impl Collector {
                 (*collector_ptr).num_readers = 1;
                 let new_epoch = Epoch::from_u8(GLOBAL_ROOT.epoch.load(Relaxed));
                 if cfg!(feature = "loom")
+                    || cfg!(miri)
                     || cfg!(not(any(target_arch = "x86", target_arch = "x86_64")))
                 {
                     // What will happen after the fence strictly happens after the fence.

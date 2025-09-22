@@ -1,5 +1,9 @@
 # Changelog
 
+4.1.1
+
+* Let `miri` not execute Intel-specific code paths.
+
 4.1.0
 
 * The size of `Option<Guard>` is now that of `Guard`.
