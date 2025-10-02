@@ -1,7 +1,7 @@
 use std::mem::forget;
 use std::ops::Deref;
 use std::panic::UnwindSafe;
-use std::ptr::{NonNull, addr_of};
+use std::ptr::NonNull;
 
 use crate::ref_counted::RefCounted;
 use crate::{Guard, Ptr};
@@ -77,7 +77,7 @@ impl<T> Owned<T> {
     /// ```
     #[inline]
     #[must_use]
-    pub fn get_guarded_ptr<'g>(&self, _guard: &'g Guard) -> Ptr<'g, T> {
+    pub const fn get_guarded_ptr<'g>(&self, _guard: &'g Guard) -> Ptr<'g, T> {
         Ptr::from(self.instance_ptr.as_ptr())
     }
 
@@ -97,8 +97,8 @@ impl<T> Owned<T> {
     /// ```
     #[inline]
     #[must_use]
-    pub fn get_guarded_ref<'g>(&self, _guard: &'g Guard) -> &'g T {
-        unsafe { std::mem::transmute::<&T, _>(&**self) }
+    pub const fn get_guarded_ref<'g>(&self, _guard: &'g Guard) -> &'g T {
+        unsafe { &*RefCounted::inst_ptr(self.instance_ptr.as_ptr()) }
     }
 
     /// Returns a mutable reference to the instance.
@@ -119,7 +119,7 @@ impl<T> Owned<T> {
     /// assert_eq!(*owned, 39);
     /// ```
     #[inline]
-    pub unsafe fn get_mut(&mut self) -> &mut T {
+    pub const unsafe fn get_mut(&mut self) -> &mut T {
         unsafe { (*self.instance_ptr.as_ptr()).get_mut_unique() }
     }
 
@@ -139,7 +139,7 @@ impl<T> Owned<T> {
     #[inline]
     #[must_use]
     pub fn as_ptr(&self) -> *const T {
-        addr_of!(**self)
+        RefCounted::inst_ptr(self.instance_ptr.as_ptr())
     }
 
     /// Drops the instance immediately.
@@ -182,15 +182,7 @@ impl<T> Owned<T> {
 
     /// Creates a new [`Owned`] from the given pointer.
     #[inline]
-    pub(super) fn from(ptr: NonNull<RefCounted<T>>) -> Self {
-        debug_assert_eq!(
-            unsafe {
-                (*ptr.as_ptr())
-                    .ref_cnt()
-                    .load(std::sync::atomic::Ordering::Relaxed)
-            },
-            0
-        );
+    pub(super) const fn from(ptr: NonNull<RefCounted<T>>) -> Self {
         Self { instance_ptr: ptr }
     }
 

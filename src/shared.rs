@@ -1,7 +1,7 @@
 use std::mem::forget;
 use std::ops::Deref;
 use std::panic::UnwindSafe;
-use std::ptr::{NonNull, addr_of};
+use std::ptr::NonNull;
 
 use crate::ref_counted::RefCounted;
 use crate::{Guard, Ptr};
@@ -81,7 +81,7 @@ impl<T> Shared<T> {
     /// ```
     #[inline]
     #[must_use]
-    pub fn get_guarded_ptr<'g>(&self, _guard: &'g Guard) -> Ptr<'g, T> {
+    pub const fn get_guarded_ptr<'g>(&self, _guard: &'g Guard) -> Ptr<'g, T> {
         Ptr::from(self.instance_ptr.as_ptr())
     }
 
@@ -101,8 +101,8 @@ impl<T> Shared<T> {
     /// ```
     #[inline]
     #[must_use]
-    pub fn get_guarded_ref<'g>(&self, _guard: &'g Guard) -> &'g T {
-        unsafe { std::mem::transmute::<&T, _>(&**self) }
+    pub const fn get_guarded_ref<'g>(&self, _guard: &'g Guard) -> &'g T {
+        unsafe { &*RefCounted::inst_ptr(self.instance_ptr.as_ptr()) }
     }
 
     /// Returns a mutable reference to the instance if the [`Shared`] is holding the only strong
@@ -151,8 +151,8 @@ impl<T> Shared<T> {
     /// ```
     #[inline]
     #[must_use]
-    pub fn as_ptr(&self) -> *const T {
-        addr_of!(**self)
+    pub const fn as_ptr(&self) -> *const T {
+        RefCounted::inst_ptr(self.instance_ptr.as_ptr())
     }
 
     /// Releases the strong reference by passing `self` to the given [`Guard`].
@@ -232,7 +232,7 @@ impl<T> Shared<T> {
 
     /// Creates a new [`Shared`] from the given pointer.
     #[inline]
-    pub(super) fn from(ptr: NonNull<RefCounted<T>>) -> Self {
+    pub(super) const fn from(ptr: NonNull<RefCounted<T>>) -> Self {
         Self { instance_ptr: ptr }
     }
 

@@ -65,8 +65,7 @@ impl<T> RefCounted<T> {
 
     /// Returns a mutable reference to the instance if it is uniquely owned.
     #[inline]
-    pub(super) fn get_mut_unique(&mut self) -> &mut T {
-        debug_assert_eq!(self.ref_cnt().load(Relaxed), 0);
+    pub(super) const fn get_mut_unique(&mut self) -> &mut T {
         &mut self.instance
     }
 
@@ -115,7 +114,7 @@ impl<T> RefCounted<T> {
 
     /// Returns a pointer to the instance.
     #[inline]
-    pub(super) fn inst_ptr(self_ptr: *const Self) -> *const T {
+    pub(super) const fn inst_ptr(self_ptr: *const Self) -> *const T {
         if self_ptr.is_null() {
             ptr::null()
         } else {

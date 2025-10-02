@@ -508,7 +508,8 @@ impl Drop for CollectorAnchor {
     }
 }
 
-/// Marks the head of a chain that there is a potentially unreachable `Collector` in the chain.
+/// Marks the head of a chain to indicate that there is a potentially unreachable `Collector` in the
+/// chain.
 fn mark_scan_enforced() {
     // `Tag::Second` indicates that there is a garbage `Collector`.
     let _result = GLOBAL_ROOT.chain_head.fetch_update(Release, Relaxed, |p| {

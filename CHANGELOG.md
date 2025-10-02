@@ -1,5 +1,9 @@
 # Changelog
 
+4.1.2
+
+* More const functions.
+
 4.1.1
 
 * Let `miri` not execute Intel-specific code paths.

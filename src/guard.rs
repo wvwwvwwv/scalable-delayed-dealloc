@@ -160,4 +160,5 @@ impl Drop for Guard {
 }
 
 impl RefUnwindSafe for Guard {}
+
 impl UnwindSafe for Guard {}
