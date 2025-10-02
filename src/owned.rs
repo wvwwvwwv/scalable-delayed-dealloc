@@ -138,7 +138,7 @@ impl<T> Owned<T> {
     /// ```
     #[inline]
     #[must_use]
-    pub fn as_ptr(&self) -> *const T {
+    pub const fn as_ptr(&self) -> *const T {
         RefCounted::inst_ptr(self.instance_ptr.as_ptr())
     }
 
