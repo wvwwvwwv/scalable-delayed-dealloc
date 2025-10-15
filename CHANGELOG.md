@@ -1,5 +1,9 @@
 # Changelog
 
+4.2.1
+
+* `u8` can be converted into `Epoch`.
+
 4.2.0
 
 * `Epoch` uses a range of `[0, 63]` `u8` values instead of rotating four values.
