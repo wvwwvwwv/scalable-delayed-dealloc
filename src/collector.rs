@@ -39,10 +39,10 @@ impl Collector {
     const CADENCE: u8 = u8::MAX;
 
     /// Represents a quiescent state.
-    const INACTIVE: u8 = 1_u8 << 2;
+    const INACTIVE: u8 = 1_u8 << 6;
 
     /// Represents a terminated thread state.
-    const INVALID: u8 = 1_u8 << 3;
+    const INVALID: u8 = 1_u8 << 7;
 
     /// Returns the [`Collector`] attached to the current thread.
     #[inline]

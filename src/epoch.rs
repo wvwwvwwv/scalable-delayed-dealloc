@@ -1,17 +1,15 @@
 /// [`Epoch`] is a unit of time that dictates the lifetime of retired memory regions.
 ///
-/// The global epoch rotates four [`Epoch`] values in a range of `[0..3]`. An [`Epoch`] value can be
-/// used to check whether a retired memory region is completely unreachable. For example, if the
-/// [`Epoch`] value when a memory region was retired is `0`, it is correct to assume that the memory
-/// region becomes unreachable when the global epoch reaches `3`.
+/// The global epoch rotates `64` [`Epoch`] values in a range of `[0..63]`, instead of monotonically
+/// increasing to reduce the memory footprint.
 #[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Epoch {
     value: u8,
 }
 
 impl Epoch {
-    /// This crate uses `4` epoch values.
-    const NUM_EPOCHS: u8 = 4;
+    /// This crate uses `64` epoch values.
+    const NUM_EPOCHS: u8 = 64;
 
     /// Returns a future [`Epoch`] when the current readers will not be present.
     ///
@@ -31,7 +29,34 @@ impl Epoch {
     #[inline]
     #[must_use]
     pub const fn next_generation(self) -> Epoch {
-        self.prev()
+        self.next().next().next()
+    }
+
+    /// Checks if the current [`Epoch`] is in the same generation as the given [`Epoch`].
+    ///
+    /// This operation is not commutative, e.g., `a.in_same_generation(b)` is not the same as
+    /// `b.in_same_generation(a)`. This returns `true` if the other [`Epoch`] is either the same
+    /// with the current one, the next one, or the next one after that. The meaning of `false`
+    /// returned by this method is that a memory region retired in the current [`Epoch`] will no
+    /// longer be reachable in the other [`Epoch`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use sdd::Epoch;
+    ///
+    /// let initial = Epoch::default();
+    ///
+    /// let next_generation = initial.next_generation();
+    /// assert!(initial.in_same_generation(initial.next().next()));
+    /// assert!(!initial.in_same_generation(initial.next().next().next()));
+    /// ```
+    #[inline]
+    #[must_use]
+    pub const fn in_same_generation(self, other: Epoch) -> bool {
+        other.value == self.value
+            || other.value == self.next().value
+            || other.value == self.next().next().value
     }
 
     /// Returns the next [`Epoch`] value.
@@ -46,8 +71,8 @@ impl Epoch {
     /// let next = initial.next();
     /// assert!(initial < next);
     ///
-    /// let next_next = next.next();
-    /// assert!(next < next_next);
+    /// let next_prev = next.prev();
+    /// assert_eq!(initial, next_prev);
     /// ```
     #[inline]
     #[must_use]
@@ -69,8 +94,8 @@ impl Epoch {
     /// let prev = initial.prev();
     /// assert!(initial < prev);
     ///
-    /// let prev_prev = prev.prev();
-    /// assert!(prev_prev < prev);
+    /// let prev_next = prev.next();
+    /// assert_eq!(initial, prev_next);
     /// ```
     #[inline]
     #[must_use]

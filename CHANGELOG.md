@@ -1,5 +1,9 @@
 # Changelog
 
+4.2.0
+
+* `Epoch` uses a range of `[0, 63]` `u8` values instead of rotating four values.
+
 4.1.2
 
 * More const functions.

@@ -91,7 +91,7 @@ impl Guard {
     /// }
     ///
     /// assert!(DROPPED.load(Relaxed));
-    /// assert_eq!(Guard::new().epoch(), epoch_before.prev());
+    /// assert_eq!(Guard::new().epoch(), epoch_before.next().next().next());
     /// ```
     #[inline]
     #[must_use]
