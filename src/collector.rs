@@ -211,8 +211,9 @@ impl Collector {
 
     /// Allocates a new [`Collector`].
     fn alloc() -> *mut Collector {
-        let boxed = Box::new(Collector::default());
+        let mut boxed = Box::new(Collector::default());
         boxed.state.store(Self::INACTIVE, Relaxed);
+        boxed.next_epoch_update = u8::MAX;
 
         let ptr = Box::into_raw(boxed);
         let mut current = GLOBAL_ROOT.chain_head.load(Relaxed);
