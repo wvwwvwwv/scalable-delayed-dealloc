@@ -1,5 +1,9 @@
 # Changelog
 
+4.2.2
+
+* `Guard::accelerate` now only accelerates garbage collection of the current thread without affecting other threads.
+
 4.2.1
 
 * `u8` can be converted into `Epoch`.

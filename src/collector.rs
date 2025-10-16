@@ -126,17 +126,15 @@ impl Collector {
             if (*collector_ptr).num_readers == 1 {
                 (*collector_ptr).num_readers = 0;
                 if (*collector_ptr).next_epoch_update == 0 {
-                    if (*collector_ptr).has_garbage
-                        || Tag::into_tag(GLOBAL_ROOT.chain_head.load(Relaxed)) == Tag::Second
-                    {
-                        Collector::scan(collector_ptr);
-                    }
+                    Collector::scan(collector_ptr);
                     (*collector_ptr).next_epoch_update = if (*collector_ptr).has_garbage {
                         Self::CADENCE / 4
                     } else {
                         Self::CADENCE
                     };
-                } else {
+                } else if (*collector_ptr).has_garbage
+                    || Tag::into_tag(GLOBAL_ROOT.chain_head.load(Relaxed)) == Tag::Second
+                {
                     (*collector_ptr).next_epoch_update =
                         (*collector_ptr).next_epoch_update.saturating_sub(1);
                 }
@@ -166,9 +164,10 @@ impl Collector {
 
     #[inline]
     /// Accelerates garbage collection.
-    pub(super) fn accelerate(&mut self) {
-        mark_scan_enforced();
-        self.next_epoch_update = 0;
+    pub(super) fn accelerate(collector_ptr: *mut Collector) {
+        unsafe {
+            (*collector_ptr).next_epoch_update = 0;
+        }
     }
 
     /// Collects garbage instances.

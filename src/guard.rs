@@ -117,9 +117,7 @@ impl Guard {
     /// ```
     #[inline]
     pub fn accelerate(&self) {
-        unsafe {
-            (*self.collector_ptr.as_ptr()).accelerate();
-        }
+        Collector::accelerate(self.collector_ptr.as_ptr());
     }
 
     /// Executes the supplied closure at a later point of time.

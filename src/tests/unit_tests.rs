@@ -135,6 +135,30 @@ fn sendable() {
 }
 
 #[test]
+fn accelerate() {
+    let current_epoch = Guard::new().epoch();
+    let target_epoch = current_epoch.next().next().next().next().next();
+
+    let thread = std::thread::spawn(move || {
+        loop {
+            let guard = Guard::new();
+            if guard.epoch() == target_epoch {
+                break;
+            }
+            guard.accelerate();
+        }
+    });
+    loop {
+        let guard = Guard::new();
+        if guard.epoch() == target_epoch {
+            break;
+        }
+        guard.accelerate();
+    }
+    assert!(thread.join().is_ok());
+}
+
+#[test]
 fn shared_send() {
     static DESTROYED: AtomicBool = AtomicBool::new(false);
 
