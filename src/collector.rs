@@ -135,8 +135,7 @@ impl Collector {
                 } else if (*collector_ptr).has_garbage
                     || Tag::into_tag(GLOBAL_ROOT.chain_head.load(Relaxed)) == Tag::Second
                 {
-                    (*collector_ptr).next_epoch_update =
-                        (*collector_ptr).next_epoch_update.saturating_sub(1);
+                    (*collector_ptr).next_epoch_update -= 1;
                 }
 
                 // What has happened cannot be observed after the thread setting itself inactive has
