@@ -44,6 +44,14 @@ impl Collector {
     /// Represents a terminated thread state.
     const INVALID: u8 = 1_u8 << 7;
 
+    #[inline]
+    /// Accelerates garbage collection.
+    pub(super) const fn accelerate(collector_ptr: *mut Collector) {
+        unsafe {
+            (*collector_ptr).next_epoch_update = 0;
+        }
+    }
+
     /// Returns the [`Collector`] attached to the current thread.
     #[inline]
     pub(super) fn current() -> NonNull<Collector> {
@@ -63,7 +71,7 @@ impl Collector {
     ///
     /// The method may panic if the number of readers has reached `u32::MAX`.
     #[inline]
-    pub(super) fn new_guard(collector_ptr: *mut Collector, collect_garbage: bool) {
+    pub(super) fn new_guard(collector_ptr: *mut Collector) {
         unsafe {
             if (*collector_ptr).num_readers == 0 {
                 debug_assert_eq!(
@@ -71,6 +79,9 @@ impl Collector {
                     Self::INACTIVE
                 );
                 (*collector_ptr).num_readers = 1;
+
+                // The epoch value can be any number between the last time a guard was created in
+                // the thread and the most recent value of `GLOBAL_TOOR.epoch`.
                 let new_epoch = Epoch::from_u8(GLOBAL_ROOT.epoch.load(Relaxed));
                 if cfg!(feature = "loom")
                     || cfg!(miri)
@@ -90,16 +101,13 @@ impl Collector {
                 }
                 if (*collector_ptr).announcement != new_epoch {
                     (*collector_ptr).announcement = new_epoch;
-                    if collect_garbage {
-                        let mut exit_guard =
-                            ExitGuard::new((collector_ptr, false), |(collector_ptr, result)| {
-                                if !result {
-                                    Self::end_guard(collector_ptr);
-                                }
-                            });
-                        Collector::epoch_updated(exit_guard.0);
-                        exit_guard.1 = true;
-                    }
+                    let mut exit_guard = ExitGuard::new(collector_ptr, |collector_ptr| {
+                        if !collector_ptr.is_null() {
+                            Self::end_guard(collector_ptr);
+                        }
+                    });
+                    Collector::epoch_updated(*exit_guard);
+                    *exit_guard = ptr::null_mut();
                 }
             } else {
                 debug_assert_eq!((*collector_ptr).state.load(Relaxed) & Self::INACTIVE, 0);
@@ -158,15 +166,11 @@ impl Collector {
         // are globally ordered. If the `SeqCst` event during the `Guard` creation happened before
         // the other `SeqCst` event, this will either load the last previous epoch value, or the
         // current value. If not, it is guaranteed that it reads the latest global epoch value.
+        //
+        // It is not possible to return the announced epoch here since the global epoch value is
+        // rotated and the announced epoch may be outdated; this may lead to a situation where the
+        // caller thinks that a new generation has been witnessed.
         Epoch::from_u8(GLOBAL_ROOT.epoch.load(Relaxed))
-    }
-
-    #[inline]
-    /// Accelerates garbage collection.
-    pub(super) fn accelerate(collector_ptr: *mut Collector) {
-        unsafe {
-            (*collector_ptr).next_epoch_update = 0;
-        }
     }
 
     /// Collects garbage instances.
@@ -366,7 +370,11 @@ impl Collector {
                 }
 
                 if update_global_epoch {
-                    // It is a new era; a fence is required.
+                    // A memory region can be retired after a `SeqCst` barrier in a `Guard`, and the
+                    // memory region can only be deallocated after the thread has observed three
+                    // times of epoch updates. This `SeqCst` fence ensures that the epoch update is
+                    // strictly sequenced after/before a `Guard`, enabling the event of the
+                    // retirement of the memory region is also globally ordered with epoch updates.
                     maybe_std_fence(SeqCst);
                     GLOBAL_ROOT
                         .epoch

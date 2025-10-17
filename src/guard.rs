@@ -35,7 +35,7 @@ impl Guard {
     #[must_use]
     pub fn new() -> Self {
         let collector_ptr = Collector::current();
-        Collector::new_guard(collector_ptr.as_ptr(), true);
+        Collector::new_guard(collector_ptr.as_ptr());
         Self { collector_ptr }
     }
 
@@ -116,7 +116,7 @@ impl Guard {
     /// assert_ne!(epoch, Guard::new().epoch());
     /// ```
     #[inline]
-    pub fn accelerate(&self) {
+    pub const fn accelerate(&self) {
         Collector::accelerate(self.collector_ptr.as_ptr());
     }
 

@@ -1,5 +1,9 @@
 # Changelog
 
+4.2.4
+
+* Minor optimization.
+
 4.2.2 - 4.2.3
 
 * `Guard::accelerate` now only accelerates garbage collection of the current thread without affecting other threads.
