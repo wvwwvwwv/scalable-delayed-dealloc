@@ -173,6 +173,12 @@ impl Collector {
         Epoch::from_u8(GLOBAL_ROOT.epoch.load(Relaxed))
     }
 
+    /// Returns `true` if the [`Collector`] has garbage.
+    #[inline]
+    pub(super) const fn has_garbage(collector_ptr: *const Collector) -> bool {
+        unsafe { (*collector_ptr).has_garbage }
+    }
+
     /// Collects garbage instances.
     #[inline]
     pub(super) fn collect(collector_ptr: *mut Collector, instance_ptr: *mut dyn Collectible) {

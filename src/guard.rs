@@ -99,6 +99,26 @@ impl Guard {
         Collector::current_epoch()
     }
 
+    /// Returns `true` if the thread local container has garbage.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use sdd::{Guard, Shared};
+    ///
+    /// let guard = Guard::new();
+    ///
+    /// assert!(!guard.has_garbage());
+    ///
+    /// drop(Shared::new(1_usize));
+    /// assert!(guard.has_garbage());
+    /// ```
+    #[inline]
+    #[must_use]
+    pub const fn has_garbage(&self) -> bool {
+        Collector::has_garbage(self.collector_ptr.as_ptr())
+    }
+
     /// Forces the [`Guard`] to try to start a new epoch when it is dropped.
     ///
     /// # Examples

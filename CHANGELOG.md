@@ -1,5 +1,9 @@
 # Changelog
 
+4.2.5
+
+* Add `Guard::has_garbage`.
+
 4.2.4
 
 * Minor optimization.
