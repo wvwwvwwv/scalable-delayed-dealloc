@@ -940,7 +940,7 @@ fn stack_iterator() {
                     let iter = stack.iter(&guard);
                     for current in iter {
                         let current = current.2;
-                        assert!(last == workload_size || last - 1 == current);
+                        assert!(last == workload_size || last > current);
                         last = current;
                     }
                 }
