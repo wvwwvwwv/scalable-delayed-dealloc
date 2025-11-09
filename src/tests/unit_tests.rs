@@ -7,7 +7,9 @@ use std::sync::{Arc, Barrier};
 use std::thread;
 
 use crate::collector::Collector;
-use crate::{AtomicOwned, AtomicShared, Guard, Owned, Ptr, Queue, Shared, Stack, Tag, suspend};
+use crate::{
+    AtomicOwned, AtomicShared, Bag, Guard, Owned, Ptr, Queue, Shared, Stack, Tag, bag, suspend,
+};
 
 static_assertions::assert_eq_size!(Guard, usize);
 static_assertions::assert_eq_size!(Option<Guard>, usize);
@@ -21,6 +23,11 @@ static_assertions::assert_not_impl_all!(Guard: Send, Sync);
 static_assertions::assert_not_impl_all!(Ptr<String>: Send, Sync);
 static_assertions::assert_not_impl_all!(Ptr<*const u8>: Send, Sync, RefUnwindSafe, UnwindSafe);
 static_assertions::assert_not_impl_all!(Shared<*const u8>: Send, Sync, RefUnwindSafe, UnwindSafe);
+static_assertions::assert_not_impl_any!(Bag<Rc<String>>: Send, Sync);
+static_assertions::assert_impl_all!(Bag<String>: Send, Sync, UnwindSafe);
+static_assertions::assert_impl_all!(bag::IterMut<'static, String>: Send, Sync, UnwindSafe);
+static_assertions::assert_not_impl_any!(Bag<*const String>: Send, Sync);
+static_assertions::assert_not_impl_any!(bag::IterMut<'static, *const String>: Send, Sync);
 static_assertions::assert_not_impl_any!(Queue<Rc<String>>: Send, Sync);
 static_assertions::assert_impl_all!(Queue<String>: Send, Sync, UnwindSafe);
 static_assertions::assert_not_impl_any!(Queue<*const String>: Send, Sync);
@@ -545,6 +552,164 @@ fn atomic_shared_clone() {
 }
 
 #[test]
+fn bag_reclaim() {
+    static INST_CNT: AtomicUsize = AtomicUsize::new(0);
+    for workload_size in [2, 18, 32, 40, 120] {
+        let mut bag: Bag<R> = Bag::default();
+        for _ in 0..workload_size {
+            bag.push(R::new(&INST_CNT, 0, 0));
+        }
+        assert_eq!(INST_CNT.load(Relaxed), workload_size);
+        assert_eq!(bag.iter_mut().count(), workload_size);
+        bag.iter_mut().for_each(|e| {
+            *e = R::new(&INST_CNT, 0, 0);
+        });
+
+        for _ in 0..workload_size / 2 {
+            bag.pop();
+        }
+        assert_eq!(INST_CNT.load(Relaxed), workload_size / 2);
+        drop(bag);
+        assert_eq!(INST_CNT.load(Relaxed), 0);
+    }
+}
+
+#[test]
+fn bag_from_iter() {
+    static INST_CNT: AtomicUsize = AtomicUsize::new(0);
+
+    let workload_size = 16;
+    let bag = (0..workload_size)
+        .map(|_| R::new(&INST_CNT, 0, 0))
+        .collect::<Bag<R>>();
+    assert_eq!(bag.len(), workload_size);
+    drop(bag);
+    assert_eq!(INST_CNT.load(Relaxed), 0);
+}
+
+#[test]
+fn bag_into_iter() {
+    static INST_CNT: AtomicUsize = AtomicUsize::new(0);
+    for workload_size in [2, 18, 32, 40, 120] {
+        let mut bag: Bag<R> = Bag::default();
+        for _ in 0..workload_size {
+            bag.push(R::new(&INST_CNT, 0, 0));
+        }
+        assert_eq!(INST_CNT.load(Relaxed), workload_size);
+        assert_eq!(bag.len(), workload_size);
+        assert_eq!(bag.iter_mut().count(), workload_size);
+
+        for v in &mut bag {
+            assert_eq!(v.0.load(Relaxed), INST_CNT.load(Relaxed));
+        }
+        assert_eq!(INST_CNT.load(Relaxed), workload_size);
+
+        for v in bag {
+            assert_eq!(v.0.load(Relaxed), INST_CNT.load(Relaxed));
+        }
+        assert_eq!(INST_CNT.load(Relaxed), 0);
+    }
+}
+
+#[test]
+fn bag_mpmc() {
+    const NUM_THREADS: usize = if cfg!(miri) { 2 } else { 6 };
+    static INST_CNT: AtomicUsize = AtomicUsize::new(0);
+    let workload_size = if cfg!(miri) { 8 } else { 64 };
+    for _ in 0..4 {
+        let bag_default: Arc<Bag<R>> = Arc::new(Bag::default());
+        let bag_half: Arc<Bag<R, 15>> = Arc::new(Bag::new());
+        for _ in 0..workload_size {
+            let mut threads = Vec::with_capacity(NUM_THREADS);
+            let barrier = Arc::new(Barrier::new(NUM_THREADS));
+            for _ in 0..NUM_THREADS {
+                let barrier = barrier.clone();
+                let bag32 = bag_default.clone();
+                let bag_half = bag_half.clone();
+                threads.push(thread::spawn(move || {
+                    barrier.wait();
+                    for _ in 0..4 {
+                        for _ in 0..workload_size {
+                            bag32.push(R::new(&INST_CNT, 0, 0));
+                            bag_half.push(R::new(&INST_CNT, 0, 0));
+                        }
+                        for _ in 0..workload_size {
+                            while bag32.pop().is_none() {
+                                Guard::new().accelerate();
+                                thread::yield_now();
+                            }
+                            while bag_half.pop().is_none() {
+                                Guard::new().accelerate();
+                                thread::yield_now();
+                            }
+                        }
+                    }
+                }));
+            }
+
+            for thread in threads {
+                assert!(thread.join().is_ok());
+            }
+            assert!(bag_default.pop().is_none());
+            assert!(bag_default.is_empty());
+            assert!(bag_half.pop().is_none());
+            assert!(bag_half.is_empty());
+        }
+        assert_eq!(INST_CNT.load(Relaxed), 0);
+    }
+}
+
+#[test]
+fn bag_mpsc() {
+    const NUM_THREADS: usize = if cfg!(miri) { 2 } else { 6 };
+    static INST_CNT: AtomicUsize = AtomicUsize::new(0);
+    let workload_size = if cfg!(miri) { 16 } else { 256 };
+    let bag32: Arc<Bag<R>> = Arc::new(Bag::default());
+    let bag7: Arc<Bag<R, 7>> = Arc::new(Bag::new());
+    for _ in 0..16 {
+        let mut threads = Vec::with_capacity(NUM_THREADS);
+        let barrier = Arc::new(Barrier::new(NUM_THREADS));
+        for thread_id in 0..NUM_THREADS {
+            let barrier = barrier.clone();
+            let bag32 = bag32.clone();
+            let bag7 = bag7.clone();
+            threads.push(thread::spawn(move || {
+                barrier.wait();
+                let mut cnt = 0;
+                while thread_id == 0 && cnt < workload_size * (NUM_THREADS - 1) * 2 {
+                    cnt += bag32.pop_all(0, |a, _| a + 1);
+                    cnt += bag7.pop_all(0, |a, _| a + 1);
+                    thread::yield_now();
+                }
+                if thread_id != 0 {
+                    for _ in 0..workload_size {
+                        bag32.push(R::new(&INST_CNT, 0, 0));
+                        bag7.push(R::new(&INST_CNT, 0, 0));
+                    }
+                    for _ in 0..workload_size / 16 {
+                        if bag32.pop().is_some() {
+                            bag32.push(R::new(&INST_CNT, 0, 0));
+                        }
+                        if bag7.pop().is_some() {
+                            bag7.push(R::new(&INST_CNT, 0, 0));
+                        }
+                    }
+                }
+            }));
+        }
+
+        for thread in threads {
+            assert!(thread.join().is_ok());
+        }
+        assert!(bag32.pop().is_none());
+        assert!(bag32.is_empty());
+        assert!(bag7.pop().is_none());
+        assert!(bag7.is_empty());
+    }
+    assert_eq!(INST_CNT.load(Relaxed), 0);
+}
+
+#[test]
 fn queue_clone() {
     let queue = Queue::default();
     queue.push(37);
@@ -610,8 +775,8 @@ fn queue_pop_all() {
 fn queue_iter_push_pop() {
     const NUM_THREADS: usize = if cfg!(miri) { 2 } else { 4 };
     static INST_CNT: AtomicUsize = AtomicUsize::new(0);
-    let queue: Arc<Queue<R>> = Arc::new(Queue::default());
     let workload_size = if cfg!(miri) { 16 } else { 256 };
+    let queue: Arc<Queue<R>> = Arc::new(Queue::default());
     for _ in 0..4 {
         let mut threads = Vec::with_capacity(NUM_THREADS);
         let barrier = Arc::new(Barrier::new(NUM_THREADS));

@@ -94,7 +94,7 @@ The average time taken to enter and exit a protected region: less than a nanosec
 
 ## Applications
 
-[`sdd`](https://crates.io/crates/sdd) provides widely used lock-free concurrent data structures, including [`LinkedList`](#linkedlist), [`Queue`](#queue), and [`Stack`](#stack).
+[`sdd`](https://crates.io/crates/sdd) provides widely used lock-free concurrent data structures, including [`LinkedList`](#linkedlist), [`Bag`](#bag), [`Queue`](#queue), and [`Stack`](#stack).
 
 ### `LinkedList`
 
@@ -135,6 +135,23 @@ assert_eq!(next_ptr.as_ref().unwrap().1, 1);
 // Once `tail` is deleted, it becomes invisible.
 tail.delete_self(Relaxed);
 assert!(head.next_ptr(Relaxed, &guard).is_null());
+```
+
+## `Bag`
+
+[`Bag`](#bag) is a concurrent lock-free unordered container. [`Bag`](#bag) is completely opaque, disallowing access to contained instances until they are popped. [`Bag`](#bag) is especially efficient if the number of contained instances can be maintained under `ARRAY_LEN (default: usize::BITS / 2)`
+
+### Examples
+
+```rust
+use sdd::Bag;
+
+let bag: Bag<usize> = Bag::default();
+
+bag.push(1);
+assert!(!bag.is_empty());
+assert_eq!(bag.pop(), Some(1));
+assert!(bag.is_empty());
 ```
 
 ## `Queue`

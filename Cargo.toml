@@ -25,3 +25,7 @@ static_assertions = "1.1"
 [[bench]]
 name = "ebr"
 harness = false
+
+[[bench]]
+name = "bag"
+harness = false

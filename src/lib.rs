@@ -7,6 +7,9 @@ pub use atomic_owned::AtomicOwned;
 mod atomic_shared;
 pub use atomic_shared::AtomicShared;
 
+pub mod bag;
+pub use bag::Bag;
+
 mod epoch;
 pub use epoch::Epoch;
 

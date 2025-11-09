@@ -1,8 +1,8 @@
 # Changelog
 
-4.3.0
+4.3.1
 
-* Add lock-free concurrent data structures: `LinkedList`, `Queue`, and `Stack`.
+* Add lock-free concurrent data structures: `Bag`, `LinkedList`, `Queue`, and `Stack`.
 
 4.2.5
 
