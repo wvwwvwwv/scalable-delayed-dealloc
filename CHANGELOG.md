@@ -1,5 +1,9 @@
 # Changelog
 
+4.3.0
+
+* Add lock-free concurrent data structures: `LinkedList`, `Queue`, and `Stack`.
+
 4.2.5
 
 * Add `Guard::has_garbage`.

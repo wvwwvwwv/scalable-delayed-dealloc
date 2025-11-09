@@ -1,11 +1,13 @@
 use std::ops::Deref;
 use std::panic::{RefUnwindSafe, UnwindSafe};
+use std::rc::Rc;
 use std::sync::atomic::Ordering::{AcqRel, Acquire, Relaxed, Release};
 use std::sync::atomic::{AtomicBool, AtomicUsize};
+use std::sync::{Arc, Barrier};
 use std::thread;
 
 use crate::collector::Collector;
-use crate::{AtomicOwned, AtomicShared, Guard, Owned, Ptr, Shared, Tag, suspend};
+use crate::{AtomicOwned, AtomicShared, Guard, Owned, Ptr, Queue, Shared, Stack, Tag, suspend};
 
 static_assertions::assert_eq_size!(Guard, usize);
 static_assertions::assert_eq_size!(Option<Guard>, usize);
@@ -19,6 +21,12 @@ static_assertions::assert_not_impl_all!(Guard: Send, Sync);
 static_assertions::assert_not_impl_all!(Ptr<String>: Send, Sync);
 static_assertions::assert_not_impl_all!(Ptr<*const u8>: Send, Sync, RefUnwindSafe, UnwindSafe);
 static_assertions::assert_not_impl_all!(Shared<*const u8>: Send, Sync, RefUnwindSafe, UnwindSafe);
+static_assertions::assert_not_impl_any!(Queue<Rc<String>>: Send, Sync);
+static_assertions::assert_impl_all!(Queue<String>: Send, Sync, UnwindSafe);
+static_assertions::assert_not_impl_any!(Queue<*const String>: Send, Sync);
+static_assertions::assert_not_impl_any!(Stack<Rc<String>>: Send, Sync);
+static_assertions::assert_impl_all!(Stack<String>: Send, Sync, UnwindSafe);
+static_assertions::assert_not_impl_any!(Stack<*const String>: Send, Sync);
 
 struct A(AtomicUsize, usize, &'static AtomicBool);
 impl Drop for A {
@@ -40,6 +48,19 @@ impl<T> Drop for C<T> {
         let guard = Guard::new();
         let guarded_ptr = self.0.get_guarded_ptr(&guard);
         assert!(!guarded_ptr.is_null());
+    }
+}
+
+struct R(&'static AtomicUsize, usize, usize);
+impl R {
+    fn new(cnt: &'static AtomicUsize, task_id: usize, seq: usize) -> R {
+        cnt.fetch_add(1, Relaxed);
+        R(cnt, task_id, seq)
+    }
+}
+impl Drop for R {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Relaxed);
     }
 }
 
@@ -410,11 +431,11 @@ fn reclaim_collector_nested() {
 fn atomic_shared_parallel() {
     let atomic_shared: Shared<AtomicShared<String>> =
         Shared::new(AtomicShared::new(String::from("How are you?")));
-    let mut thread_handles = Vec::new();
+    let mut threads = Vec::new();
     let concurrency = if cfg!(miri) { 4 } else { 16 };
     for _ in 0..concurrency {
         let atomic_shared = atomic_shared.clone();
-        thread_handles.push(thread::spawn(move || {
+        threads.push(thread::spawn(move || {
             for _ in 0..concurrency {
                 let guard = Guard::new();
                 let mut ptr = (*atomic_shared).load(Acquire, &guard);
@@ -470,7 +491,7 @@ fn atomic_shared_parallel() {
             }
         }));
     }
-    for t in thread_handles {
+    for t in threads {
         assert!(t.join().is_ok());
     }
 }
@@ -479,10 +500,10 @@ fn atomic_shared_parallel() {
 fn atomic_shared_clone() {
     let atomic_shared: Shared<AtomicShared<String>> =
         Shared::new(AtomicShared::new(String::from("How are you?")));
-    let mut thread_handles = Vec::new();
+    let mut threads = Vec::new();
     for t in 0..4 {
         let atomic_shared = atomic_shared.clone();
-        thread_handles.push(thread::spawn(move || {
+        threads.push(thread::spawn(move || {
             let num_iter = if cfg!(miri) { 16 } else { 256 };
             for i in 0..num_iter {
                 if t == 0 {
@@ -518,7 +539,349 @@ fn atomic_shared_clone() {
             }
         }));
     }
-    for t in thread_handles {
+    for t in threads {
         assert!(t.join().is_ok());
+    }
+}
+
+#[test]
+fn queue_clone() {
+    let queue = Queue::default();
+    queue.push(37);
+    queue.push(3);
+    queue.push(1);
+
+    let queue_clone = queue.clone();
+
+    assert_eq!(queue.pop().map(|e| **e), Some(37));
+    assert_eq!(queue.pop().map(|e| **e), Some(3));
+    assert_eq!(queue.pop().map(|e| **e), Some(1));
+    assert!(queue.pop().is_none());
+
+    assert_eq!(queue_clone.pop().map(|e| **e), Some(37));
+    assert_eq!(queue_clone.pop().map(|e| **e), Some(3));
+    assert_eq!(queue_clone.pop().map(|e| **e), Some(1));
+    assert!(queue_clone.pop().is_none());
+}
+
+#[test]
+fn queue_from_iter() {
+    static INST_CNT: AtomicUsize = AtomicUsize::new(0);
+
+    let workload_size = 16;
+    let queue = (0..workload_size)
+        .map(|i| R::new(&INST_CNT, i, i))
+        .collect::<Queue<R>>();
+    assert_eq!(queue.len(), workload_size);
+    drop(queue);
+
+    while INST_CNT.load(Relaxed) != 0 {
+        Guard::new().accelerate();
+        thread::yield_now();
+    }
+}
+
+#[test]
+fn queue_pop_all() {
+    const NUM_ENTRIES: usize = 256;
+    static INST_CNT: AtomicUsize = AtomicUsize::new(0);
+
+    let queue = Queue::default();
+
+    for i in 0..NUM_ENTRIES {
+        queue.push(R::new(&INST_CNT, i, i));
+    }
+
+    let mut expected = 0;
+    while let Some(e) = queue.pop() {
+        assert_eq!(e.1, expected);
+        expected += 1;
+    }
+    assert_eq!(expected, NUM_ENTRIES);
+    assert!(queue.is_empty());
+
+    while INST_CNT.load(Relaxed) != 0 {
+        Guard::new().accelerate();
+        thread::yield_now();
+    }
+}
+
+#[test]
+fn queue_iter_push_pop() {
+    const NUM_THREADS: usize = if cfg!(miri) { 2 } else { 4 };
+    static INST_CNT: AtomicUsize = AtomicUsize::new(0);
+    let queue: Arc<Queue<R>> = Arc::new(Queue::default());
+    let workload_size = if cfg!(miri) { 16 } else { 256 };
+    for _ in 0..4 {
+        let mut threads = Vec::with_capacity(NUM_THREADS);
+        let barrier = Arc::new(Barrier::new(NUM_THREADS));
+        for task_id in 0..NUM_THREADS {
+            let barrier = barrier.clone();
+            let queue = queue.clone();
+            threads.push(thread::spawn(move || {
+                if task_id == 0 {
+                    for seq in 0..workload_size {
+                        if seq == workload_size / 2 {
+                            barrier.wait();
+                        }
+                        assert_eq!(queue.push(R::new(&INST_CNT, task_id, seq)).2, seq);
+                    }
+                    let mut last = 0;
+                    while let Some(popped) = queue.pop() {
+                        let current = popped.1;
+                        assert!(last == 0 || last + 1 == current);
+                        last = current;
+                    }
+                } else {
+                    let mut last = 0;
+
+                    barrier.wait();
+                    let guard = Guard::new();
+                    let iter = queue.iter(&guard);
+                    for current in iter {
+                        let current = current.1;
+                        assert!(current == 0 || last + 1 == current);
+                        last = current;
+                    }
+                }
+            }));
+        }
+
+        for thread in threads {
+            assert!(thread.join().is_ok());
+        }
+    }
+    assert!(queue.is_empty());
+
+    while INST_CNT.load(Relaxed) != 0 {
+        Guard::new().accelerate();
+        thread::yield_now();
+    }
+}
+
+#[test]
+fn queue_mpmc() {
+    const NUM_THREADS: usize = if cfg!(miri) { 3 } else { 6 };
+    const NUM_PRODUCERS: usize = NUM_THREADS / 2;
+    static INST_CNT: AtomicUsize = AtomicUsize::new(0);
+    let workload_size = if cfg!(miri) { 16 } else { 256 };
+    let queue: Arc<Queue<R>> = Arc::new(Queue::default());
+    for _ in 0..4 {
+        let num_popped: Arc<AtomicUsize> = Arc::new(AtomicUsize::default());
+        let mut threads = Vec::with_capacity(NUM_THREADS);
+        let barrier = Arc::new(Barrier::new(NUM_THREADS));
+        for thread_id in 0..NUM_THREADS {
+            let barrier = barrier.clone();
+            let queue = queue.clone();
+            let num_popped = num_popped.clone();
+            threads.push(thread::spawn(move || {
+                barrier.wait();
+                if thread_id < NUM_PRODUCERS {
+                    for seq in 1..=workload_size {
+                        assert_eq!(queue.push(R::new(&INST_CNT, thread_id, seq)).2, seq);
+                    }
+                } else {
+                    let mut popped_acc: [usize; NUM_PRODUCERS] = Default::default();
+                    loop {
+                        let mut cnt = 0;
+                        while let Some(popped) = queue.pop() {
+                            cnt += 1;
+                            assert!(popped_acc[popped.1] < popped.2);
+                            popped_acc[popped.1] = popped.2;
+                        }
+                        if num_popped.fetch_add(cnt, Relaxed) + cnt == workload_size * NUM_PRODUCERS
+                        {
+                            break;
+                        }
+                        thread::yield_now();
+                    }
+                }
+            }));
+        }
+
+        for thread in threads {
+            assert!(thread.join().is_ok());
+        }
+    }
+    assert!(queue.is_empty());
+
+    while INST_CNT.load(Relaxed) != 0 {
+        Guard::new().accelerate();
+        thread::yield_now();
+    }
+}
+
+#[test]
+fn stack_clone() {
+    let stack = Stack::default();
+    stack.push(37);
+    stack.push(3);
+    stack.push(1);
+
+    let stack_clone = stack.clone();
+
+    assert_eq!(stack.pop().map(|e| **e), Some(1));
+    assert_eq!(stack.pop().map(|e| **e), Some(3));
+    assert_eq!(stack.pop().map(|e| **e), Some(37));
+    assert!(stack.pop().is_none());
+
+    assert_eq!(stack_clone.pop().map(|e| **e), Some(1));
+    assert_eq!(stack_clone.pop().map(|e| **e), Some(3));
+    assert_eq!(stack_clone.pop().map(|e| **e), Some(37));
+    assert!(stack_clone.pop().is_none());
+}
+
+#[test]
+fn stack_from_iter() {
+    let workload_size = 16;
+    let stack = (0..workload_size).collect::<Stack<usize>>();
+    assert_eq!(stack.len(), workload_size);
+    for i in (0..workload_size).rev() {
+        assert_eq!(stack.pop().map(|e| **e), Some(i));
+    }
+}
+
+#[test]
+fn stack_iterator() {
+    const NUM_THREADS: usize = if cfg!(miri) { 2 } else { 12 };
+    static INST_CNT: AtomicUsize = AtomicUsize::new(0);
+    let workload_size = if cfg!(miri) { 16 } else { 256 };
+    let stack: Arc<Stack<R>> = Arc::new(Stack::default());
+    for _ in 0..4 {
+        let mut threads = Vec::with_capacity(NUM_THREADS);
+        let barrier = Arc::new(Barrier::new(NUM_THREADS));
+        for task_id in 0..NUM_THREADS {
+            let barrier = barrier.clone();
+            let stack = stack.clone();
+            threads.push(thread::spawn(move || {
+                if task_id == 0 {
+                    for seq in 0..workload_size {
+                        if seq == workload_size / 2 {
+                            barrier.wait();
+                        }
+                        assert_eq!(stack.push(R::new(&INST_CNT, task_id, seq)).2, seq);
+                    }
+                    let mut last = workload_size;
+                    while let Some(popped) = stack.pop() {
+                        let current = popped.2;
+                        assert_eq!(current + 1, last);
+                        last = current;
+                    }
+                } else {
+                    let mut last = workload_size;
+
+                    barrier.wait();
+                    let guard = Guard::new();
+                    let iter = stack.iter(&guard);
+                    for current in iter {
+                        let current = current.2;
+                        assert!(last == workload_size || last - 1 == current);
+                        last = current;
+                    }
+                }
+            }));
+        }
+
+        for t in threads {
+            assert!(t.join().is_ok());
+        }
+    }
+    assert!(stack.is_empty());
+
+    while INST_CNT.load(Relaxed) != 0 {
+        Guard::new().accelerate();
+        thread::yield_now();
+    }
+}
+
+#[test]
+fn stack_mpmc() {
+    const NUM_THREADS: usize = if cfg!(miri) { 2 } else { 12 };
+    static INST_CNT: AtomicUsize = AtomicUsize::new(0);
+    let workload_size = if cfg!(miri) { 16 } else { 256 };
+    let stack: Arc<Stack<R>> = Arc::new(Stack::default());
+    for _ in 0..4 {
+        let mut threads = Vec::with_capacity(NUM_THREADS);
+        let barrier = Arc::new(Barrier::new(NUM_THREADS));
+        for thread_id in 0..NUM_THREADS {
+            let barrier = barrier.clone();
+            let stack = stack.clone();
+            threads.push(thread::spawn(move || {
+                barrier.wait();
+                for seq in 0..workload_size {
+                    assert_eq!(stack.push(R::new(&INST_CNT, thread_id, seq)).2, seq);
+                }
+                let mut last_popped = usize::MAX;
+                let mut cnt = 0;
+                while cnt < workload_size {
+                    while let Ok(Some(popped)) = stack.pop_if(|e| e.1 == thread_id) {
+                        assert_eq!(popped.1, thread_id);
+                        assert!(last_popped > popped.2);
+                        last_popped = popped.2;
+                        cnt += 1;
+                    }
+                    thread::yield_now();
+                }
+            }));
+        }
+
+        for t in threads {
+            assert!(t.join().is_ok());
+        }
+    }
+    assert!(stack.is_empty());
+
+    while INST_CNT.load(Relaxed) != 0 {
+        Guard::new().accelerate();
+        thread::yield_now();
+    }
+}
+
+#[test]
+fn stack_mpsc() {
+    const NUM_THREADS: usize = if cfg!(miri) { 2 } else { 12 };
+    static INST_CNT: AtomicUsize = AtomicUsize::new(0);
+    let workload_size = if cfg!(miri) { 16 } else { 256 };
+    let stack: Arc<Stack<R>> = Arc::new(Stack::default());
+    for _ in 0..4 {
+        let mut threads = Vec::with_capacity(NUM_THREADS);
+        let barrier = Arc::new(Barrier::new(NUM_THREADS));
+        for thread_id in 0..NUM_THREADS {
+            let barrier = barrier.clone();
+            let stack = stack.clone();
+            threads.push(thread::spawn(move || {
+                barrier.wait();
+                let mut cnt = 0;
+                while thread_id == 0 && cnt < workload_size * (NUM_THREADS - 1) {
+                    // Consumer.
+                    let popped = stack.pop_all();
+                    while let Some(e) = popped.pop() {
+                        assert_ne!(e.1, 0);
+                        cnt += 1;
+                    }
+                    thread::yield_now();
+                }
+                if thread_id != 0 {
+                    for seq in 0..workload_size {
+                        assert_eq!(stack.push(R::new(&INST_CNT, thread_id, seq)).2, seq);
+                    }
+                    for seq in 0..workload_size / 16 {
+                        if stack.pop().is_some() {
+                            assert_eq!(stack.push(R::new(&INST_CNT, thread_id, seq)).2, seq);
+                        }
+                    }
+                }
+            }));
+        }
+
+        for t in threads {
+            assert!(t.join().is_ok());
+        }
+    }
+    assert!(stack.is_empty());
+
+    while INST_CNT.load(Relaxed) != 0 {
+        Guard::new().accelerate();
+        thread::yield_now();
     }
 }

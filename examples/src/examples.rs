@@ -1,4 +1,4 @@
-use sdd::{AtomicShared, Guard, Owned, Shared, Tag};
+use sdd::{AtomicShared, Guard, Owned, Queue, Shared, Stack, Tag};
 use std::sync::atomic::AtomicIsize;
 use std::sync::atomic::Ordering::{Acquire, Relaxed};
 use std::thread::{self, yield_now};
@@ -11,7 +11,7 @@ impl Drop for R {
 }
 
 #[test]
-fn single_threaded() {
+fn ebr_single_threaded() {
     static DROP_CNT: AtomicIsize = AtomicIsize::new(0);
 
     let r = Shared::new(R(&DROP_CNT));
@@ -40,7 +40,7 @@ fn single_threaded() {
 }
 
 #[test]
-fn multi_threaded() {
+fn ebr_multi_threaded() {
     static DROP_CNT: AtomicIsize = AtomicIsize::new(0);
 
     let r1 = Owned::new(R(&DROP_CNT));
@@ -83,4 +83,36 @@ fn multi_threaded() {
         yield_now();
     }
     assert_eq!(DROP_CNT.load(Relaxed), 2);
+}
+
+#[test]
+fn queue_single_threaded() {
+    let workload_size = 256;
+    let queue: Queue<isize> = Queue::default();
+    for i in 1..workload_size {
+        queue.push(i);
+    }
+    let mut expected = 1;
+    while let Some(popped) = queue.pop() {
+        assert_eq!(**popped, expected);
+        expected = **popped + 1;
+    }
+    assert_eq!(expected, workload_size);
+    assert!(queue.is_empty());
+}
+
+#[test]
+fn stack_single_threaded() {
+    let workload_size = 256;
+    let stack: Stack<isize> = Stack::default();
+    for i in 1..workload_size {
+        stack.push(i);
+    }
+    let mut expected = workload_size - 1;
+    while let Some(popped) = stack.pop() {
+        assert_eq!(**popped, expected);
+        expected = **popped - 1;
+    }
+    assert_eq!(expected, 0);
+    assert!(stack.is_empty());
 }

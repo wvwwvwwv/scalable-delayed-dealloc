@@ -13,14 +13,23 @@ pub use epoch::Epoch;
 mod guard;
 pub use guard::Guard;
 
+mod linked_list;
+pub use linked_list::{LinkedEntry, LinkedList};
+
 mod owned;
 pub use owned::Owned;
 
 mod ptr;
 pub use ptr::Ptr;
 
+pub mod queue;
+pub use queue::Queue;
+
 mod shared;
 pub use shared::Shared;
+
+pub mod stack;
+pub use stack::Stack;
 
 mod tag;
 pub use tag::Tag;
