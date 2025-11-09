@@ -100,8 +100,6 @@ The average time taken to enter and exit a protected region: less than a nanosec
 
 [`LinkedList`](#linkedlist) is a trait that implements lock-free concurrent singly linked list operations. It additionally provides a method for marking a linked list entry to denote a user-defined state.
 
-### Examples
-
 ```rust
 use std::sync::atomic::Ordering::Relaxed;
 
@@ -132,16 +130,14 @@ assert!(head.is_marked(Relaxed));
 let next_ptr = head.next_ptr(Relaxed, &guard);
 assert_eq!(next_ptr.as_ref().unwrap().1, 1);
 
-// Once `tail` is deleted, it becomes invisible.
+// Once `tail` is deleted, it becomes unreachable.
 tail.delete_self(Relaxed);
 assert!(head.next_ptr(Relaxed, &guard).is_null());
 ```
 
-## `Bag`
+### `Bag`
 
 [`Bag`](#bag) is a concurrent lock-free unordered container. [`Bag`](#bag) is completely opaque, disallowing access to contained instances until they are popped. [`Bag`](#bag) is especially efficient if the number of contained instances can be maintained under `ARRAY_LEN (default: usize::BITS / 2)`
-
-### Examples
 
 ```rust
 use sdd::Bag;
@@ -154,11 +150,9 @@ assert_eq!(bag.pop(), Some(1));
 assert!(bag.is_empty());
 ```
 
-## `Queue`
+### `Queue`
 
 [`Queue`](#queue) is a concurrent lock-free first-in-first-out container.
-
-### Examples
 
 ```rust
 use sdd::Queue;
@@ -173,11 +167,9 @@ assert_eq!(queue.pop().map(|e| **e), Some(2));
 assert!(queue.pop().is_none());
 ```
 
-## `Stack`
+### `Stack`
 
 [`Stack`](#stack) is a concurrent lock-free last-in-first-out container.
-
-### Examples
 
 ```rust
 use sdd::Stack;
