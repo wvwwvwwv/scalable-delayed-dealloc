@@ -13,6 +13,7 @@ use crate::{Guard, Owned, Ptr, Tag};
 pub struct AtomicOwned<T> {
     instance_ptr: AtomicPtr<RefCounted<T>>,
 }
+
 /// A pair of [`Owned`] and [`Ptr`] of the same type.
 pub type OwnedPtrPair<'g, T> = (Option<Owned<T>>, Ptr<'g, T>);
 

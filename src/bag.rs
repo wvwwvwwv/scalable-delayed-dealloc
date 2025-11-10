@@ -16,8 +16,7 @@ use super::{Guard, LinkedEntry, LinkedList, Stack};
 /// in a fixed-size array, and the rest are managed by its backup container; this makes a [`Bag`]
 /// especially efficient if the expected number of instances does not exceed `ARRAY_LEN`.
 ///
-/// The maximum value of `ARRAY_LEN` is limited to `usize::BITS / 2` which is the default value, and
-/// if a larger value is specified, [`Bag::new`] panics.
+/// The maximum value of `ARRAY_LEN` is limited to `usize::BITS / 2` which is the default value.
 #[derive(Debug)]
 pub struct Bag<T, const ARRAY_LEN: usize = DEFAULT_ARRAY_LEN> {
     /// Primary storage.
@@ -62,11 +61,10 @@ struct Storage<T, const ARRAY_LEN: usize> {
 }
 
 impl<T, const ARRAY_LEN: usize> Bag<T, ARRAY_LEN> {
+    /// `ARRAY_LEN` cannot be larger than `usize::BITS / 2`.
+    const CHECK_ARRAY_LEN: () = assert!(ARRAY_LEN <= (usize::BITS as usize) / 2);
+
     /// Creates an empty [`Bag`].
-    ///
-    /// # Panics
-    ///
-    /// Panics if the specified `ARRAY_LEN` value is larger than `usize::BITS / 2`.
     ///
     /// # Examples
     ///
@@ -79,7 +77,7 @@ impl<T, const ARRAY_LEN: usize> Bag<T, ARRAY_LEN> {
     #[inline]
     #[must_use]
     pub const fn new() -> Self {
-        assert!(ARRAY_LEN <= DEFAULT_ARRAY_LEN);
+        let () = Self::CHECK_ARRAY_LEN;
         Self {
             primary_storage: Storage::new(),
             stack: Stack::new(),
@@ -91,7 +89,7 @@ impl<T, const ARRAY_LEN: usize> Bag<T, ARRAY_LEN> {
     #[inline]
     #[must_use]
     pub fn new() -> Self {
-        assert!(ARRAY_LEN <= DEFAULT_ARRAY_LEN);
+        let () = Self::SIZE_ASSERTION;
         Self {
             primary_storage: Storage::new(),
             stack: Stack::new(),
@@ -279,10 +277,7 @@ impl<T, const ARRAY_LEN: usize> Bag<T, ARRAY_LEN> {
 impl<T> Default for Bag<T, DEFAULT_ARRAY_LEN> {
     #[inline]
     fn default() -> Self {
-        Self {
-            primary_storage: Storage::new(),
-            stack: Stack::default(),
-        }
+        Self::new()
     }
 }
 
