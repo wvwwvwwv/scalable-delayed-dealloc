@@ -89,7 +89,7 @@ impl<T, const ARRAY_LEN: usize> Bag<T, ARRAY_LEN> {
     #[inline]
     #[must_use]
     pub fn new() -> Self {
-        let () = Self::SIZE_ASSERTION;
+        let () = Self::CHECK_ARRAY_LEN;
         Self {
             primary_storage: Storage::new(),
             stack: Stack::new(),
