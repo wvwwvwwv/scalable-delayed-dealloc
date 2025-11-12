@@ -39,10 +39,10 @@ impl Collector {
     const CADENCE: u8 = u8::MAX;
 
     /// Represents a quiescent state.
-    const INACTIVE: u8 = 1_u8 << 6;
+    const INACTIVE: u8 = Epoch::NUM_EPOCHS;
 
     /// Represents a terminated thread state.
-    const INVALID: u8 = 1_u8 << 7;
+    const INVALID: u8 = Epoch::NUM_EPOCHS << 1;
 
     #[inline]
     /// Accelerates garbage collection.
