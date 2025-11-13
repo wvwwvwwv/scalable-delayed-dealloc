@@ -1,5 +1,9 @@
 # Changelog
 
+4.3.2
+
+* Add `Bag::try_push`.
+
 4.3.1
 
 * Add lock-free concurrent data structures: `Bag`, `LinkedList`, `Queue`, and `Stack`.

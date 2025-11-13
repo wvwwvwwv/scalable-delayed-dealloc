@@ -126,6 +126,31 @@ impl<T, const ARRAY_LEN: usize> Bag<T, ARRAY_LEN> {
         }
     }
 
+    /// Tries to push an instance of `T` only if the primary storage is not full.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error containing the supplied value if the primary storage is full.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use sdd::Bag;
+    ///
+    /// let bag: Bag<usize, 1> = Bag::new();
+    ///
+    /// assert!(bag.try_push(11).is_ok());
+    /// assert_eq!(bag.try_push(17), Err(17));
+    /// ```
+    #[inline]
+    pub fn try_push(&self, val: T) -> Result<(), T> {
+        if let Some(returned) = self.primary_storage.push(val, true) {
+            Err(returned)
+        } else {
+            Ok(())
+        }
+    }
+
     /// Pops an instance in the [`Bag`] if not empty.
     ///
     /// # Examples
