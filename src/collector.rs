@@ -101,13 +101,11 @@ impl Collector {
                 }
                 if (*collector_ptr).announcement != new_epoch {
                     (*collector_ptr).announcement = new_epoch;
-                    let mut exit_guard = ExitGuard::new(collector_ptr, |collector_ptr| {
-                        if !collector_ptr.is_null() {
-                            Self::end_guard(collector_ptr);
-                        }
+                    let exit_guard = ExitGuard::new((), |()| {
+                        Self::end_guard(collector_ptr);
                     });
-                    Collector::epoch_updated(*exit_guard);
-                    *exit_guard = ptr::null_mut();
+                    Collector::epoch_updated(collector_ptr);
+                    exit_guard.forget();
                 }
             } else {
                 debug_assert_eq!((*collector_ptr).state.load(Relaxed) & Self::INACTIVE, 0);

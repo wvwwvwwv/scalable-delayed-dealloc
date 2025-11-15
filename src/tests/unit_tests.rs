@@ -80,7 +80,8 @@ fn deferred() {
     drop(guard);
 
     while !EXECUTED.load(Relaxed) {
-        drop(Guard::new());
+        Guard::new().accelerate();
+        thread::yield_now();
     }
 }
 
@@ -117,7 +118,8 @@ fn shared() {
 
     drop(shared_clone_again);
     while !DESTROYED.load(Relaxed) {
-        drop(Guard::new());
+        Guard::new().accelerate();
+        thread::yield_now();
     }
 }
 
@@ -143,7 +145,8 @@ fn owned() {
     drop(guard);
 
     while !DESTROYED.load(Relaxed) {
-        drop(Guard::new());
+        Guard::new().accelerate();
+        thread::yield_now();
     }
 }
 
@@ -174,6 +177,7 @@ fn accelerate() {
                 break;
             }
             guard.accelerate();
+            thread::yield_now();
         }
     });
     loop {
@@ -217,7 +221,25 @@ fn shared_nested() {
     drop(nested_shared);
 
     while !DESTROYED.load(Relaxed) {
-        drop(Guard::new());
+        Guard::new().accelerate();
+        thread::yield_now();
+    }
+}
+
+#[test]
+fn shared_nested_thread() {
+    static DESTROYED: AtomicBool = AtomicBool::new(false);
+
+    let thread = std::thread::spawn(move || {
+        let nested_shared = Shared::new(Shared::new(A(AtomicUsize::new(10), 10, &DESTROYED)));
+        assert!(!DESTROYED.load(Relaxed));
+        drop(nested_shared);
+    });
+    assert!(thread.join().is_ok());
+
+    while !DESTROYED.load(Relaxed) {
+        Guard::new().accelerate();
+        thread::yield_now();
     }
 }
 
@@ -254,7 +276,8 @@ fn atomic_shared() {
     drop(guard);
 
     while !DESTROYED.load(Relaxed) {
-        drop(Guard::new());
+        Guard::new().accelerate();
+        thread::yield_now();
     }
 }
 
