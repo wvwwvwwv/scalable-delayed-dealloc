@@ -1,5 +1,9 @@
 # Changelog
 
+4.3.3
+
+* Relax memory ordering when releasing `Guard`.
+
 4.3.2
 
 * Add `Bag::try_push`.

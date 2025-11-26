@@ -35,7 +35,7 @@ impl Guard {
     #[must_use]
     pub fn new() -> Self {
         let collector_ptr = Collector::current();
-        Collector::new_guard(collector_ptr.as_ptr());
+        Collector::new_guard(collector_ptr);
         Self { collector_ptr }
     }
 
@@ -116,7 +116,7 @@ impl Guard {
     #[inline]
     #[must_use]
     pub const fn has_garbage(&self) -> bool {
-        Collector::has_garbage(self.collector_ptr.as_ptr())
+        Collector::has_garbage(self.collector_ptr)
     }
 
     /// Forces the [`Guard`] to try to start a new epoch when it is dropped.
@@ -137,7 +137,7 @@ impl Guard {
     /// ```
     #[inline]
     pub const fn accelerate(&self) {
-        Collector::accelerate(self.collector_ptr.as_ptr());
+        Collector::accelerate(self.collector_ptr);
     }
 
     /// Executes the supplied closure at a later point of time.
@@ -157,7 +157,7 @@ impl Guard {
     #[inline]
     pub fn defer_execute<F: 'static + FnOnce()>(&self, f: F) {
         Collector::collect(
-            self.collector_ptr.as_ptr(),
+            self.collector_ptr,
             Box::into_raw(Box::new(DeferredClosure::new(f))),
         );
     }
@@ -173,7 +173,7 @@ impl Default for Guard {
 impl Drop for Guard {
     #[inline]
     fn drop(&mut self) {
-        Collector::end_guard(self.collector_ptr.as_ptr());
+        Collector::end_guard(self.collector_ptr);
     }
 }
 
