@@ -32,7 +32,6 @@ fn ebr_owned() {
             drop(data_owned);
 
             assert_eq!(ptr.as_ref().unwrap().0, str);
-            guard.accelerate();
             drop(guard);
 
             assert!(suspend());
@@ -72,7 +71,6 @@ fn ebr_shared() {
             let guard = Guard::new();
             let ptr = data_shared_clone.get_guarded_ptr(&guard);
             drop(data_shared_clone);
-            guard.accelerate();
 
             assert_eq!(ptr.as_ref().unwrap().0, str);
             drop(guard);

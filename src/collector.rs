@@ -91,10 +91,10 @@ impl Collector {
                 // region turn inactive, because, the reclaimer needs to wait for at least two
                 // `SeqCst` barrier events in `scan` to reclaim the memory region, and the fact that
                 // the other threads were able to load a valid pointer means that the thread was in
-                // between the same `SeqCst` barrier pair or an older one; if the former, one of the
-                // two `scan` events must have observed that the thread was active (*this cannot be
-                // achieved by `Release-Acquire` relationships), preventing the global epoch from
-                // advancing more than once; if the latter, trivial.
+                // between the same `SeqCst` barrier event pair or an older one; if the former, one
+                // of the two `scan` events must have observed that the thread was active (this
+                // cannot be achieved by `Release-Acquire` relationships), preventing the global
+                // epoch from advancing more than once; if the latter, trivial.
                 if cfg!(feature = "loom")
                     || cfg!(miri)
                     || cfg!(not(any(target_arch = "x86", target_arch = "x86_64")))
@@ -167,9 +167,11 @@ impl Collector {
                     (*collector_ptr.as_ptr()).next_epoch_update -= 1;
                 }
 
+                // `Release` is needed to prevent any previous load operations in this thread from
+                // passing through.
                 (*collector_ptr.as_ptr()).state.store(
                     u8::from((*collector_ptr.as_ptr()).announcement) | Self::INACTIVE,
-                    Relaxed,
+                    Release,
                 );
             } else {
                 (*collector_ptr.as_ptr()).num_readers -= 1;
