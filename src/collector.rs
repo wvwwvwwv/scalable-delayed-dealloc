@@ -432,7 +432,7 @@ impl Collector {
                     if ((*current_collector_ptr).state.load(Acquire) & Self::INVALID) == 0 {
                         return false;
                     }
-                    current_collector_ptr = (*current_collector_ptr).next_link.load(Relaxed);
+                    current_collector_ptr = (*current_collector_ptr).next_link.load(Acquire);
                 }
 
                 // Reaching here means that there is no `Ptr` that possibly sees any garbage instances

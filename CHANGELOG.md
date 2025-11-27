@@ -2,7 +2,7 @@
 
 4.3.3
 
-* Relax memory ordering when releasing `Guard`.
+* Minor code cleanup.
 
 4.3.2
 
