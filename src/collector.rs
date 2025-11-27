@@ -1,10 +1,14 @@
 use std::ptr::{self, NonNull, addr_of_mut};
 use std::sync::atomic::Ordering::{Acquire, Relaxed, Release, SeqCst};
+#[cfg(not(feature = "loom"))]
+use std::sync::atomic::fence;
 use std::sync::atomic::{AtomicPtr, AtomicU8};
+
+#[cfg(feature = "loom")]
+use loom::sync::atomic::fence;
 
 use crate::collectible::{Collectible, Link};
 use crate::exit_guard::ExitGuard;
-use crate::maybe_std::fence as maybe_std_fence;
 use crate::{Epoch, Tag};
 
 /// [`Collector`] is a garbage collector that reclaims thread-locally unreachable instances
@@ -103,7 +107,7 @@ impl Collector {
                     (*collector_ptr.as_ptr())
                         .state
                         .store(new_epoch.into(), Relaxed);
-                    maybe_std_fence(SeqCst);
+                    fence(SeqCst);
                 } else {
                     // This special optimization is excerpted from
                     // [`crossbeam_epoch`](https://docs.rs/crossbeam-epoch/).
@@ -409,7 +413,7 @@ impl Collector {
                     // times of epoch updates. This `SeqCst` fence ensures that the epoch update is
                     // strictly sequenced after/before a `Guard`, enabling the event of the
                     // retirement of the memory region is also globally ordered with epoch updates.
-                    maybe_std_fence(SeqCst);
+                    fence(SeqCst);
                     GLOBAL_ROOT
                         .epoch
                         .store(Epoch::from_u8(known_epoch).next().into(), Relaxed);

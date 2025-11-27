@@ -67,15 +67,5 @@ pub fn suspend() -> bool {
     collector::Collector::pass_garbage()
 }
 
-#[cfg(feature = "loom")]
-mod maybe_std {
-    pub(crate) use loom::sync::atomic::{AtomicPtr, fence};
-}
-
-#[cfg(not(feature = "loom"))]
-mod maybe_std {
-    pub(crate) use std::sync::atomic::{AtomicPtr, fence};
-}
-
 #[cfg(test)]
 mod tests;

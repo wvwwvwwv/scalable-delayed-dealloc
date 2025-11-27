@@ -1,9 +1,13 @@
 use std::mem::forget;
 use std::panic::UnwindSafe;
 use std::ptr::{NonNull, null, null_mut};
+#[cfg(not(feature = "loom"))]
+use std::sync::atomic::AtomicPtr;
 use std::sync::atomic::Ordering::{self, Relaxed};
 
-use crate::maybe_std::AtomicPtr;
+#[cfg(feature = "loom")]
+use loom::sync::atomic::AtomicPtr;
+
 use crate::ref_counted::RefCounted;
 use crate::{Guard, Owned, Ptr, Tag};
 
