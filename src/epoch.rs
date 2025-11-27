@@ -8,7 +8,7 @@ pub struct Epoch {
 }
 
 impl Epoch {
-    /// This crate uses `64` epoch values.
+    /// Rotates `64` epoch values.
     pub(super) const NUM_EPOCHS: u8 = 64;
 
     /// Returns a future [`Epoch`] when the current readers will not be present.

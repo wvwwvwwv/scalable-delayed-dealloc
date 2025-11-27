@@ -1,3 +1,4 @@
+use std::cell::UnsafeCell;
 use std::ptr::{self, NonNull, addr_of_mut};
 use std::sync::atomic::Ordering::{Acquire, Relaxed, Release, SeqCst};
 #[cfg(not(feature = "loom"))]
@@ -60,11 +61,14 @@ impl Collector {
     #[inline]
     pub(super) fn current() -> NonNull<Collector> {
         LOCAL_COLLECTOR.with(|local_collector| {
-            NonNull::new(local_collector.load(Relaxed)).unwrap_or_else(|| {
-                let collector_ptr = COLLECTOR_ANCHOR.with(CollectorAnchor::alloc);
-                local_collector.store(collector_ptr.as_ptr(), Relaxed);
-                collector_ptr
-            })
+            let local_collector_ptr = local_collector.get();
+            unsafe {
+                NonNull::new(*local_collector_ptr).unwrap_or_else(|| {
+                    let collector_ptr = COLLECTOR_ANCHOR.with(CollectorAnchor::alloc);
+                    (*local_collector_ptr) = collector_ptr.as_ptr();
+                    collector_ptr
+                })
+            }
         })
     }
 
@@ -222,7 +226,8 @@ impl Collector {
     #[inline]
     pub(super) fn pass_garbage() -> bool {
         LOCAL_COLLECTOR.with(|local_collector| {
-            let collector_ptr = local_collector.load(Relaxed);
+            let local_collector_ptr = local_collector.get();
+            let collector_ptr = unsafe { *local_collector_ptr };
             if collector_ptr.is_null() {
                 return true;
             }
@@ -234,7 +239,9 @@ impl Collector {
                 // In case the thread state is marked `Invalid`, a `Release` guard is required since
                 // any remaining garbage may be reclaimed by other threads.
                 collector.state.fetch_or(Collector::INVALID, Release);
-                local_collector.store(ptr::null_mut(), Relaxed);
+                unsafe {
+                    *local_collector_ptr = ptr::null_mut();
+                }
                 mark_scan_enforced();
             }
             true
@@ -534,20 +541,21 @@ impl Drop for CollectorAnchor {
         unsafe {
             // `LOCAL_COLLECTOR` is the last thread-local variable to be dropped.
             LOCAL_COLLECTOR.with(|local_collector| {
-                let collector_ptr = local_collector.load(Relaxed);
+                let local_collector_ptr = local_collector.get();
+                let collector_ptr = *local_collector_ptr;
                 if !collector_ptr.is_null() {
                     (*collector_ptr).state.fetch_or(Collector::INVALID, Release);
                 }
 
                 let mut temp_collector = Collector::default();
                 temp_collector.state.store(Collector::INACTIVE, Relaxed);
-                local_collector.store(addr_of_mut!(temp_collector), Relaxed);
+                *local_collector_ptr = addr_of_mut!(temp_collector);
                 if !Collector::clear_chain() {
                     mark_scan_enforced();
                 }
 
                 Collector::clear_for_drop(addr_of_mut!(temp_collector));
-                local_collector.store(ptr::null_mut(), Relaxed);
+                *local_collector_ptr = ptr::null_mut();
             });
         }
     }
@@ -568,7 +576,7 @@ fn mark_scan_enforced() {
 }
 
 thread_local! {
-    static LOCAL_COLLECTOR: AtomicPtr<Collector> = const { AtomicPtr::new(ptr::null_mut()) };
+    static LOCAL_COLLECTOR: UnsafeCell<*mut Collector> = const { UnsafeCell::new(ptr::null_mut()) };
     static COLLECTOR_ANCHOR: CollectorAnchor = const { CollectorAnchor };
 }
 
