@@ -6,7 +6,7 @@
 
 A scalable lock-free delayed memory reclaimer that emulates garbage collection by keeping track of memory reachability.
 
-The delayed deallocation algorithm is based on a variant of epoch-based reclamation where retired memory chunks are stored in thread-local storage until specific criteria are met. It is similar to [`crossbeam_epoch`](https://docs.rs/crossbeam-epoch/), however, users will find `sdd` more straightforward to use as `sdd` provides smart pointer types. For instance, `sdd::AtomicOwned`, `sdd::Owned`, `sdd::AtomicShared`, and `sdd::Shared` retire the contained value when they are dropped or the last reference is dropped.
+The delayed deallocation algorithm is based on a variant of epoch-based reclamation where retired memory chunks are temporarily kept in thread-local storage until they are no longer reachable. It is similar to [`crossbeam_epoch`](https://docs.rs/crossbeam-epoch/), however, users will find `sdd` more straightforward to use as `sdd` provides smart pointer types. For instance, `sdd::AtomicOwned`, `sdd::Owned`, `sdd::AtomicShared`, and `sdd::Shared` retire the contained value when the last reference is dropped.
 
 ## Features
 
