@@ -19,7 +19,7 @@ members = [".", "examples"]
 loom = { version = "0.7", optional = true }
 
 [dev-dependencies]
-criterion = "0.7"
+criterion = "0.8"
 static_assertions = "1.1"
 
 [[bench]]
