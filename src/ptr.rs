@@ -71,6 +71,30 @@ impl<'g, T> Ptr<'g, T> {
         unsafe { Some(&*ptr) }
     }
 
+    /// Tries to create a reference to the underlying instance without checking tag bits.
+    ///
+    /// # Safety
+    ///
+    /// This [`Ptr`] must not have any tag bits set, otherwise dereferencing the pointer may lead to
+    /// undefined behavior.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use sdd::{AtomicShared, Guard};
+    /// use std::sync::atomic::Ordering::Relaxed;
+    ///
+    /// let atomic_shared: AtomicShared<usize> = AtomicShared::new(21);
+    /// let guard = Guard::new();
+    /// let ptr = atomic_shared.load(Relaxed, &guard);
+    /// assert_eq!(unsafe { *ptr.as_ref_unchecked().unwrap() }, 21);
+    /// ```
+    #[inline]
+    #[must_use]
+    pub const unsafe fn as_ref_unchecked(&self) -> Option<&'g T> {
+        unsafe { RefCounted::inst_ptr(self.instance_ptr).as_ref() }
+    }
+
     /// Provides a raw pointer to the instance.
     ///
     /// # Examples

@@ -1,5 +1,9 @@
 # Changelog
 
+4.3.4
+
+* Add `Ptr::as_ref_unchecked`.
+
 4.3.3
 
 * Minor code cleanup.
