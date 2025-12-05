@@ -1,5 +1,9 @@
 # Changelog
 
+4.3.5
+
+* Prepare for an upcoming Rust breaking change: [`Rust#136702`](https://github.com/rust-lang/rust/issues/136702).
+
 4.3.4
 
 * Add `Ptr::as_ref_unchecked`.

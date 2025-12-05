@@ -131,6 +131,10 @@ impl<T> RefCounted<T> {
     /// Passes a pointer to [`RefCounted`] to the garbage collector.
     #[inline]
     pub(super) fn pass_to_collector(ptr: *mut Self) {
+        // The lifetime of the pointer is extended to `'static`; it is not illegal since the safe
+        // public API does not permit to create a `RefCounted` of a non `'static` type, and those
+        // that allow to do so are all unsafe methods (e.g., `{Owned, Shard}::new_unchecked`) where
+        // the doc explicitly states that the pointed-to value may be dropped at an arbitrary time.
         #[allow(clippy::transmute_ptr_to_ptr)]
         let ptr = unsafe {
             std::mem::transmute::<*mut (dyn Collectible + '_), *mut (dyn Collectible + 'static)>(
