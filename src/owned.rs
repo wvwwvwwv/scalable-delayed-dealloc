@@ -129,8 +129,6 @@ impl<T> Owned<T> {
     ///
     /// ```
     /// use sdd::Owned;
-    /// use std::sync::atomic::AtomicBool;
-    /// use std::sync::atomic::Ordering::Relaxed;
     ///
     /// let owned: Owned<usize> = Owned::new(10);
     ///
@@ -148,8 +146,6 @@ impl<T> Owned<T> {
     ///
     /// ```
     /// use sdd::Owned;
-    /// use std::sync::atomic::AtomicBool;
-    /// use std::sync::atomic::Ordering::Relaxed;
     ///
     /// let owned: Owned<usize> = Owned::new(10);
     ///

@@ -140,8 +140,6 @@ impl<T> Shared<T> {
     ///
     /// ```
     /// use sdd::Shared;
-    /// use std::sync::atomic::AtomicBool;
-    /// use std::sync::atomic::Ordering::Relaxed;
     ///
     /// let shared: Shared<usize> = Shared::new(10);
     /// let shared_clone: Shared<usize> = shared.clone();
@@ -161,8 +159,6 @@ impl<T> Shared<T> {
     ///
     /// ```
     /// use sdd::Shared;
-    /// use std::sync::atomic::AtomicBool;
-    /// use std::sync::atomic::Ordering::Relaxed;
     ///
     /// let shared: Shared<usize> = Shared::new(10);
     /// let shared_clone: Shared<usize> = shared.clone();
