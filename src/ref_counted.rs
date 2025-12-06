@@ -3,8 +3,8 @@ use std::ptr::{self, NonNull, addr_of};
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::{self, Relaxed};
 
-use crate::collectible::{Collectible, Link};
-use crate::collector::Collector;
+use super::collectible::{Collectible, Link};
+use super::collector::Collector;
 
 /// [`RefCounted`] stores an instance of type `T`, and a union of a link to the next
 /// [`Collectible`] or the reference counter.

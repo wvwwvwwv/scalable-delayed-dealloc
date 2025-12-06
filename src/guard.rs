@@ -1,9 +1,9 @@
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::ptr::NonNull;
 
-use crate::Epoch;
-use crate::collectible::DeferredClosure;
-use crate::collector::Collector;
+use super::Epoch;
+use super::collectible::DeferredClosure;
+use super::collector::Collector;
 
 /// [`Guard`] allows the user to read [`AtomicShared`](super::AtomicShared) and keeps the
 /// underlying instance pinned to the thread.

@@ -8,9 +8,9 @@ use std::sync::atomic::{AtomicPtr, AtomicU8};
 #[cfg(feature = "loom")]
 use loom::sync::atomic::fence;
 
-use crate::collectible::{Collectible, Link};
-use crate::exit_guard::ExitGuard;
-use crate::{Epoch, Tag};
+use super::collectible::{Collectible, Link};
+use super::exit_guard::ExitGuard;
+use super::{Epoch, Tag};
 
 /// [`Collector`] is a garbage collector that reclaims thread-locally unreachable instances
 /// when they are globally unreachable.

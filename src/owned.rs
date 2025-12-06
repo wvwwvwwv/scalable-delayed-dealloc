@@ -3,8 +3,8 @@ use std::ops::Deref;
 use std::panic::UnwindSafe;
 use std::ptr::NonNull;
 
-use crate::ref_counted::RefCounted;
-use crate::{Guard, Ptr};
+use super::ref_counted::RefCounted;
+use super::{Guard, Ptr};
 
 /// [`Owned`] uniquely owns an instance.
 ///

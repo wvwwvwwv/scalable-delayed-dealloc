@@ -116,6 +116,30 @@ impl<'g, T> Ptr<'g, T> {
         RefCounted::inst_ptr(Tag::unset_tag(self.instance_ptr))
     }
 
+    /// Tries to create a pointer to the underlying instance without checking tag bits.
+    ///
+    /// # Safety
+    ///
+    /// This [`Ptr`] must not have any tag bits set, otherwise dereferencing the pointer may lead to
+    /// undefined behavior.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use sdd::{AtomicShared, Guard};
+    /// use std::sync::atomic::Ordering::Relaxed;
+    ///
+    /// let atomic_shared: AtomicShared<usize> = AtomicShared::new(21);
+    /// let guard = Guard::new();
+    /// let ptr = atomic_shared.load(Relaxed, &guard);
+    /// assert_eq!(unsafe { *ptr.as_ptr_unchecked() }, 21);
+    /// ```
+    #[inline]
+    #[must_use]
+    pub const unsafe fn as_ptr_unchecked(&self) -> *const T {
+        RefCounted::inst_ptr(self.instance_ptr)
+    }
+
     /// Returns its [`Tag`].
     ///
     /// # Examples
