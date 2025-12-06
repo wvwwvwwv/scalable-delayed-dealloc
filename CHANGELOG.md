@@ -3,6 +3,7 @@
 4.4.0
 
 * Add `Ptr::as_{ptr|ref}_unchecked`.
+* Add `{Owned|Shared}::as_non_null_ptr`.
 
 4.3.5
 

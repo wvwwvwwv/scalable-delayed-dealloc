@@ -1,3 +1,4 @@
+use std::mem::offset_of;
 use std::ops::Deref;
 use std::ptr::{self, NonNull, addr_of};
 use std::sync::atomic::AtomicUsize;
@@ -98,7 +99,7 @@ impl<T> RefCounted<T> {
         let mut current = self.ref_cnt().load(Relaxed);
         loop {
             debug_assert_ne!(current, 0);
-            let new = if current <= 1 { 0 } else { current - 2 };
+            let new = current.saturating_sub(2);
             match self
                 .ref_cnt()
                 .compare_exchange_weak(current, new, Relaxed, Relaxed)
@@ -120,6 +121,13 @@ impl<T> RefCounted<T> {
         } else {
             unsafe { addr_of!((*self_ptr).instance) }
         }
+    }
+
+    /// Returns a non-null pointer to the instance.
+    #[inline]
+    pub(super) const fn inst_non_null_ptr(self_ptr: NonNull<Self>) -> NonNull<T> {
+        let offset = offset_of!(Self, instance);
+        unsafe { self_ptr.cast::<u8>().add(offset).cast::<T>() }
     }
 
     /// Returns a reference to its reference count.

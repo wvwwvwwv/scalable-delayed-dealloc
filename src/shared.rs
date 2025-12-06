@@ -102,7 +102,7 @@ impl<T> Shared<T> {
     #[inline]
     #[must_use]
     pub const fn get_guarded_ref<'g>(&self, _guard: &'g Guard) -> &'g T {
-        unsafe { &*RefCounted::inst_ptr(self.instance_ptr.as_ptr()) }
+        unsafe { RefCounted::inst_non_null_ptr(self.instance_ptr).as_ref() }
     }
 
     /// Returns a mutable reference to the instance if the [`Shared`] is holding the only strong
@@ -152,7 +152,28 @@ impl<T> Shared<T> {
     #[inline]
     #[must_use]
     pub const fn as_ptr(&self) -> *const T {
-        RefCounted::inst_ptr(self.instance_ptr.as_ptr())
+        RefCounted::inst_non_null_ptr(self.instance_ptr).as_ptr()
+    }
+
+    /// Provides a raw non-null pointer to the instance.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use sdd::Shared;
+    /// use std::sync::atomic::AtomicBool;
+    /// use std::sync::atomic::Ordering::Relaxed;
+    ///
+    /// let shared: Shared<usize> = Shared::new(10);
+    /// let shared_clone: Shared<usize> = shared.clone();
+    ///
+    /// assert_eq!(shared.as_ptr(), shared_clone.as_ptr());
+    /// assert_eq!(unsafe { *shared.as_non_null_ptr().as_ref() }, unsafe { *shared_clone.as_ptr() });
+    /// ```
+    #[inline]
+    #[must_use]
+    pub const fn as_non_null_ptr(&self) -> NonNull<T> {
+        RefCounted::inst_non_null_ptr(self.instance_ptr)
     }
 
     /// Releases the strong reference by passing `self` to the given [`Guard`].

@@ -98,7 +98,7 @@ impl<T> Owned<T> {
     #[inline]
     #[must_use]
     pub const fn get_guarded_ref<'g>(&self, _guard: &'g Guard) -> &'g T {
-        unsafe { &*RefCounted::inst_ptr(self.instance_ptr.as_ptr()) }
+        unsafe { RefCounted::inst_non_null_ptr(self.instance_ptr).as_ref() }
     }
 
     /// Returns a mutable reference to the instance.
@@ -139,7 +139,26 @@ impl<T> Owned<T> {
     #[inline]
     #[must_use]
     pub const fn as_ptr(&self) -> *const T {
-        RefCounted::inst_ptr(self.instance_ptr.as_ptr())
+        RefCounted::inst_non_null_ptr(self.instance_ptr).as_ptr()
+    }
+
+    /// Provides a raw non-null pointer to the instance.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use sdd::Owned;
+    /// use std::sync::atomic::AtomicBool;
+    /// use std::sync::atomic::Ordering::Relaxed;
+    ///
+    /// let owned: Owned<usize> = Owned::new(10);
+    ///
+    /// assert_eq!(unsafe { *owned.as_non_null_ptr().as_ref() }, 10);
+    /// ```
+    #[inline]
+    #[must_use]
+    pub const fn as_non_null_ptr(&self) -> NonNull<T> {
+        RefCounted::inst_non_null_ptr(self.instance_ptr)
     }
 
     /// Drops the instance immediately.
