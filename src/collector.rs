@@ -41,7 +41,7 @@ struct CollectorAnchor;
 
 impl Collector {
     /// The number of quiescent states before an epoch update is triggered.
-    const CADENCE: u8 = u8::MAX;
+    const CADENCE: u8 = 64;
 
     /// Represents a quiescent state.
     const INACTIVE: u8 = Epoch::NUM_EPOCHS;
@@ -163,12 +163,7 @@ impl Collector {
                 (*collector_ptr.as_ptr()).num_readers = 0;
                 if (*collector_ptr.as_ptr()).next_epoch_update == 0 {
                     Collector::scan(collector_ptr);
-                    (*collector_ptr.as_ptr()).next_epoch_update =
-                        if (*collector_ptr.as_ptr()).has_garbage {
-                            Self::CADENCE / 4
-                        } else {
-                            Self::CADENCE
-                        };
+                    (*collector_ptr.as_ptr()).next_epoch_update = Self::CADENCE;
                 } else if (*collector_ptr.as_ptr()).has_garbage
                     || Tag::into_tag(GLOBAL_ROOT.chain_head.load(Relaxed)) == Tag::Second
                 {
@@ -208,16 +203,20 @@ impl Collector {
         unsafe { (*collector_ptr.as_ptr()).has_garbage }
     }
 
+    /// Sets the garbage flag to allow this thread to advance the global epoch.
+    #[inline]
+    pub(super) const fn set_has_garbage(collector_ptr: NonNull<Collector>) {
+        unsafe {
+            (*collector_ptr.as_ptr()).has_garbage = true;
+        }
+    }
+
     /// Collects garbage instances.
     #[inline]
     pub(super) fn collect(collector_ptr: NonNull<Collector>, instance_ptr: *mut dyn Collectible) {
         unsafe {
             (*instance_ptr).set_next_ptr((*collector_ptr.as_ptr()).current_instance_link.take());
             (*collector_ptr.as_ptr()).current_instance_link = NonNull::new(instance_ptr);
-            (*collector_ptr.as_ptr()).next_epoch_update = (*collector_ptr.as_ptr())
-                .next_epoch_update
-                .saturating_sub(1)
-                .min(Self::CADENCE / 4);
             (*collector_ptr.as_ptr()).has_garbage = true;
         }
     }
@@ -252,7 +251,7 @@ impl Collector {
     fn alloc() -> NonNull<Collector> {
         let mut boxed = Box::new(Collector::default());
         boxed.state.store(Self::INACTIVE, Relaxed);
-        boxed.next_epoch_update = u8::MAX;
+        boxed.next_epoch_update = Self::CADENCE;
 
         let ptr = Box::into_raw(boxed);
         let mut current = GLOBAL_ROOT.chain_head.load(Relaxed);
@@ -317,13 +316,7 @@ impl Collector {
                     garbage_link = guard.take();
                 }
             }
-            if (*collector_ptr.as_ptr()).has_garbage {
-                // The collector still has garbage instances.
-                (*collector_ptr.as_ptr()).next_epoch_update = Self::CADENCE / 4;
-            } else {
-                // No need to update the epoch immediately.
-                (*collector_ptr.as_ptr()).next_epoch_update = Self::CADENCE;
-            }
+            (*collector_ptr.as_ptr()).next_epoch_update = Self::CADENCE;
         }
     }
 

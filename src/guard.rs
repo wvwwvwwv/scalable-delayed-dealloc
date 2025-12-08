@@ -119,6 +119,24 @@ impl Guard {
         Collector::has_garbage(self.collector_ptr)
     }
 
+    /// Sets the garbage flag to allow this thread to advance the global epoch.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use sdd::Guard;
+    ///
+    /// let guard = Guard::new();
+    ///
+    /// assert!(!guard.has_garbage());
+    /// guard.set_has_garbage();
+    /// assert!(guard.has_garbage());
+    /// ```
+    #[inline]
+    pub const fn set_has_garbage(&self) {
+        Collector::set_has_garbage(self.collector_ptr);
+    }
+
     /// Forces the [`Guard`] to try to start a new epoch when it is dropped.
     ///
     /// # Examples

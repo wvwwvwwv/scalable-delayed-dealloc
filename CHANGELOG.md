@@ -1,5 +1,9 @@
 # Changelog
 
+4.5.0
+
+* Add `Guard::set_has_garbage`.
+
 4.4.0
 
 * Add `Ptr::as_{ptr|ref}_unchecked`.
