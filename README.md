@@ -1,3 +1,7 @@
+# Moved to [`codeberg`](https://codeberg.org/wvwwvwwv/scalable-delayed-dealloc)
+
+This repository has been moved to [codeberg](https://codeberg.org/wvwwvwwv/scalable-delayed-dealloc), and will no longer be maintained here.
+
 # Scalable Delayed Dealloc
 
 [![Cargo](https://img.shields.io/crates/v/sdd)](https://crates.io/crates/sdd)
